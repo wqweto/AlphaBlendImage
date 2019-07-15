@@ -49,6 +49,11 @@ Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
 Option Explicit
 
+Private Declare Function CreateFile Lib "kernel32" Alias "CreateFileA" (ByVal lpFileName As String, ByVal dwDesiredAccess As Long, ByVal dwShareMode As Long, ByVal NoSecurity As Long, ByVal dwCreationDisposition As Long, ByVal dwFlagsAndAttributes As Long, ByVal hTemplateFile As Long) As Long
+Private Declare Function CloseHandle Lib "kernel32" (ByVal hObject As Long) As Long
+Private Declare Function ReadFile Lib "kernel32" (ByVal hFile As Long, lpBuffer As Any, ByVal nNumberOfBytesToRead As Long, lpNumberOfBytesRead As Long, ByVal lpOverlapped As Long) As Long
+Private Declare Function SetFilePointer Lib "kernel32" (ByVal hFile As Long, ByVal lDistanceToMove As Long, ByVal lpDistanceToMoveHigh As Long, ByVal dwMoveMethod As Long) As Long
+
 Private Sub Form_Load()
     On Error GoTo EH
     Set AlphaBlendImage1.Picture = AlphaBlendImage1.GdipLoadPictureArray(ReadBinaryFile(App.Path & "\bbb.png"))
@@ -82,14 +87,24 @@ Private Sub Timer1_Timer()
 End Sub
 
 Private Function ReadBinaryFile(sFile As String) As Byte()
-    Dim nFile           As Integer
+    Const GENERIC_READ  As Long = &H80000000
+    Const FILE_SHARE_READ As Long = &H1
+    Const FILE_SHARE_WRITE As Long = &H2
+    Const OPEN_EXISTING As Long = &H3
+    Const INVALID_HANDLE_VALUE As Long = -1
+    Const FILE_BEGIN    As Long = 0
+    Const FILE_END      As Long = 2
+    Dim hFile           As Long
     Dim baBuffer()      As Byte
     
-    nFile = FreeFile
-    Open sFile For Binary Access Read Shared As nFile
-    If LOF(nFile) > 0 Then
-        ReDim baBuffer(0 To LOF(nFile) - 1) As Byte
-        Get nFile, , baBuffer
+    hFile = CreateFile(sFile, GENERIC_READ, FILE_SHARE_READ Or FILE_SHARE_WRITE, 0, OPEN_EXISTING, 0, 0)
+    If hFile = INVALID_HANDLE_VALUE Then
+        Exit Function
     End If
+    ReDim baBuffer(0 To SetFilePointer(hFile, 0, 0, FILE_END) - 1) As Byte
+    Call SetFilePointer(hFile, 0, 0, FILE_BEGIN)
+    Call ReadFile(hFile, baBuffer(0), UBound(baBuffer) + 1, 0, 0)
+    Call CloseHandle(hFile)
     ReadBinaryFile = baBuffer
 End Function
+
