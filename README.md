@@ -4,16 +4,18 @@ Poor Man's Transparent Image Control
 
 ### Description
 
-AlphaBlendImage control is built-in Image control replacement (sort of) that supports alpha transparent images through GDI+. Built-in ole automation `StdPicture` can load 32-bit alpha transparent images in `vbPicTypeIcon` sub-type, although few controls support such `StdPicture`s. This `AlphaBlendImage` control does.
+`AlphaBlendImage` control is built-in `VB.Image` control replacement (sort of) that supports alpha transparent images through GDI+. Standard OLE automation `StdPicture` objects can load 32-bit alpha transparent images in `vbPicTypeIcon` subtype, although few controls paint the alpha channel on these `StdPicture`s. This `AlphaBlendImage` control brings this support.
 
 ### API
 
-It also has a public `GdipLoadPicture` method so that one can load 32-bit PNGs in `StdPicture`s and assign these to control's `Picture` property. In the sample `Form1` such alpha transparent image is loaded to a `StdPicture` and is assigned both to a built-in `Image1` control and to a `AlphaBlendImage1` control to compare difference in output.
+The control's public `GdipLoadPicture` method can load 32-bit alpha transparent PNGs in `StdPicture` objects which can be assigned to control's `Picture` property. In the sample `Form1` such alpha transparent image is loaded to a `StdPicture` and is assigned both to a built-in `VB.Image` control and to an `AlphaBlendImage` control to compare difference in output.
 
-The control support `Opacity` property -- in addition to per pixel alpha this controls "global" control transparency. 
+The control support `Opacity` property for "global" control transparency level (in addition to per-pixel alpha). 
 
-The control support `Rotation` property which rotates the assigned image. 
+The control support `MaskColor` property for color-key transparency (in addition to per-pixel alpha).
 
-The control support `MaskColor` property for key-color transparency.
+The control support `Rotation` property which rotates the assigned image (in degrees). 
 
-The control is windowless and cannot get focus. Its `AutoRedraw` property controls if repaint is cached to in-memory DIB for faster redraws.
+The control support `Zoom` property which scales the image (only when `Stretch` is off).
+
+The control is windowless and cannot get focus. Its `AutoRedraw` property controls if repaint is cached to memory 32-bit DIB for faster redraws.
