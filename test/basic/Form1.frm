@@ -65,14 +65,14 @@ Private Sub AlphaBlendImage1_Click()
 End Sub
 
 Private Sub Timer1_Timer()
-    AlphaBlendImage1.Angle = AlphaBlendImage1.Angle + 13
+    AlphaBlendImage1.Rotation = AlphaBlendImage1.Rotation + 13
     AlphaBlendImage1.Left = AlphaBlendImage1.Left + AlphaBlendImage1.Tag
     If AlphaBlendImage1.Left + AlphaBlendImage1.Width > ScaleWidth Then
         AlphaBlendImage1.Tag = -Abs(AlphaBlendImage1.Tag)
     ElseIf AlphaBlendImage1.Left < 0 Then
         AlphaBlendImage1.Tag = Abs(AlphaBlendImage1.Tag)
     End If
-    Caption = AlphaBlendImage1.Angle
+    Caption = AlphaBlendImage1.Rotation
     Image1.Left = Image1.Left + Image1.Tag
     If Image1.Left + Image1.Width > ScaleWidth And Image1.Left > 0 Then
         Image1.Tag = -Abs(Image1.Tag)
