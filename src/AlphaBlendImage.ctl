@@ -74,6 +74,7 @@ Private Declare Function OleCreatePictureIndirect Lib "oleaut32" (lpPictDesc As 
 Private Declare Function CreateBitmap Lib "gdi32" (ByVal nWidth As Long, ByVal nHeight As Long, ByVal nPlanes As Long, ByVal nBitCount As Long, lpBits As Any) As Long
 Private Declare Function CreateIconIndirect Lib "user32" (pIconInfo As ICONINFO) As Long
 Private Declare Function DestroyIcon Lib "user32" (ByVal hIcon As Long) As Long
+Private Declare Function SHCreateMemStream Lib "shlwapi" Alias "#12" (ByRef pInit As Any, ByVal cbInit As Long) As IUnknown
 '--- gdi+
 Private Declare Function GdiplusStartup Lib "gdiplus" (hToken As Long, pInputBuf As Any, Optional ByVal pOutputBuf As Long = 0) As Long
 Private Declare Function GdipCreateBitmapFromScan0 Lib "gdiplus" (ByVal lWidth As Long, ByVal lHeight As Long, ByVal lStride As Long, ByVal lPixelFormat As Long, ByVal Scan0 As Long, hBitmap As Long) As Long
@@ -91,6 +92,7 @@ Private Declare Function GdipCreateBitmapFromHBITMAP Lib "gdiplus" (ByVal hBmp A
 Private Declare Function GdipCreateBitmapFromHICON Lib "gdiplus" (ByVal hIcon As Long, hBitmap As Long) As Long
 Private Declare Function GdipGetImageDimension Lib "gdiplus" (ByVal hImage As Long, nWidth As Single, nHeight As Single) As Long   '
 Private Declare Function GdipLoadImageFromFile Lib "gdiplus" (ByVal sFileName As Long, mImage As Long) As Long
+Private Declare Function GdipLoadImageFromStream Lib "gdiplus" (ByVal pStream As IUnknown, ByRef mImage As Long) As Long
 Private Declare Function GdipTranslateWorldTransform Lib "gdiplus" (ByVal hGraphics As Long, ByVal nDx As Single, ByVal nDy As Single, ByVal lOrder As Long) As Long
 Private Declare Function GdipScaleWorldTransform Lib "gdiplus" (ByVal hGraphics As Long, ByVal nSx As Single, ByVal nSy As Single, ByVal lOrder As Long) As Long
 Private Declare Function GdipRotateWorldTransform Lib "gdiplus" (ByVal hGraphics As Long, ByVal nRotation As Single, ByVal lOrder As Long) As Long
@@ -325,7 +327,46 @@ EH:
 End Sub
 
 Public Function GdipLoadPicture(sFileName As String) As StdPicture
+    Const FUNC_NAME     As String = "GdipLoadPicture"
     Dim hBitmap         As Long
+    
+    On Error GoTo EH
+    If GdipLoadImageFromFile(StrPtr(sFileName), hBitmap) <> 0 Then
+        GoTo QH
+    End If
+    Set GdipLoadPicture = pvLoadPicture(hBitmap)
+QH:
+    Exit Function
+EH:
+    PrintError FUNC_NAME
+    Resume Next
+End Function
+
+Public Function GdipLoadPictureArray(baBuffer() As Byte) As StdPicture
+    Const FUNC_NAME     As String = "GdipLoadPictureArray"
+    Dim pStream         As IUnknown
+    Dim hBitmap         As Long
+    
+    On Error GoTo EH
+    Set pStream = SHCreateMemStream(baBuffer(LBound(baBuffer)), UBound(baBuffer) - LBound(baBuffer) + 1)
+    If pStream Is Nothing Then
+        GoTo QH
+    End If
+    If GdipLoadImageFromStream(pStream, hBitmap) <> 0 Then
+        GoTo QH
+    End If
+    Set GdipLoadPictureArray = pvLoadPicture(hBitmap)
+QH:
+    Exit Function
+EH:
+    PrintError FUNC_NAME
+    Resume Next
+End Function
+
+'= private ===============================================================
+
+Private Function pvLoadPicture(hBitmap As Long) As StdPicture
+    Const FUNC_NAME     As String = "pvLoadPicture"
     Dim sngWidth        As Single
     Dim sngHeight       As Single
     Dim hMemDC          As Long
@@ -338,9 +379,6 @@ Public Function GdipLoadPicture(sFileName As String) As StdPicture
     Dim aGUID(0 To 3)   As Long
     
     On Error GoTo EH
-    If GdipLoadImageFromFile(StrPtr(sFileName), hBitmap) <> 0 Then
-        GoTo QH
-    End If
     If GdipGetImageDimension(hBitmap, sngWidth, sngHeight) <> 0 Then
         GoTo QH
     End If
@@ -375,7 +413,7 @@ Public Function GdipLoadPicture(sFileName As String) As StdPicture
     aGUID(1) = &H101ABF32
     aGUID(2) = &HAA00BB8B
     aGUID(3) = &HAB0C3000
-    If OleCreatePictureIndirect(uDesc, aGUID(0), 1, GdipLoadPicture) <> 0 Then
+    If OleCreatePictureIndirect(uDesc, aGUID(0), 1, pvLoadPicture) <> 0 Then
         GoTo QH
     End If
     hIcon = 0
@@ -409,10 +447,9 @@ QH:
     End If
     Exit Function
 EH:
+    PrintError FUNC_NAME
     Resume QH
 End Function
-
-'= private ===============================================================
 
 Private Sub pvRefresh()
     m_bShown = False

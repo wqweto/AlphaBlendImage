@@ -51,9 +51,9 @@ Option Explicit
 
 Private Sub Form_Load()
     On Error GoTo EH
-    Set AlphaBlendImage1.Picture = AlphaBlendImage1.GdipLoadPicture(App.Path & "\bbb.png")
+    Set AlphaBlendImage1.Picture = AlphaBlendImage1.GdipLoadPictureArray(ReadBinaryFile(App.Path & "\bbb.png"))
     AlphaBlendImage1.Tag = -120
-    Set Image1.Picture = AlphaBlendImage1.Picture
+    Set Image1.Picture = AlphaBlendImage1.GdipLoadPicture(App.Path & "\bbb.png")
     Image1.Tag = 80
     Exit Sub
 EH:
@@ -81,3 +81,15 @@ Private Sub Timer1_Timer()
     End If
 End Sub
 
+Private Function ReadBinaryFile(sFile As String) As Byte()
+    Dim nFile           As Integer
+    Dim baBuffer()      As Byte
+    
+    nFile = FreeFile
+    Open sFile For Binary Access Read Shared As nFile
+    If LOF(nFile) > 0 Then
+        ReDim baBuffer(0 To LOF(nFile) - 1) As Byte
+        Get nFile, , baBuffer
+    End If
+    ReadBinaryFile = baBuffer
+End Function
