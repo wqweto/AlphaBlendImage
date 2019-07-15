@@ -49,6 +49,8 @@ Private Const UnitPixel                     As Long = 2
 Private Const DIB_RGB_COLORS                As Long = 0 '  color table in RGBs
 '--- for GdipSetInterpolationMode
 Private Const InterpolationModeHighQualityBicubic As Long = 7
+'--- for Gdip*WorldTransform
+Private Const MatrixOrderAppend             As Long = 1
 
 Private Declare Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (lpDst As Any, lpSrc As Any, ByVal ByteLength As Long)
 Private Declare Function ArrPtr Lib "msvbvm60" Alias "VarPtr" (Ptr() As Any) As Long
@@ -85,6 +87,7 @@ Private Declare Function GdipCreateBitmapFromHICON Lib "gdiplus" (ByVal hIcon As
 Private Declare Function GdipGetImageDimension Lib "gdiplus" (ByVal hImage As Long, nWidth As Single, nHeight As Single) As Long   '
 Private Declare Function GdipLoadImageFromFile Lib "gdiplus" (ByVal sFileName As Long, mImage As Long) As Long
 Private Declare Function GdipTranslateWorldTransform Lib "gdiplus" (ByVal hGraphics As Long, ByVal nDx As Single, ByVal nDy As Single, ByVal lOrder As Long) As Long
+Private Declare Function GdipScaleWorldTransform Lib "gdiplus" (ByVal hGraphics As Long, ByVal nSx As Single, ByVal nSy As Single, ByVal lOrder As Long) As Long
 Private Declare Function GdipRotateWorldTransform Lib "gdiplus" (ByVal hGraphics As Long, ByVal nRotation As Single, ByVal lOrder As Long) As Long
 Private Declare Function GdipSetInterpolationMode Lib "gdiplus" (ByVal hGraphics As Long, ByVal lMode As Long) As Long
 
@@ -123,6 +126,7 @@ End Type
 
 Private Const DEF_OPACITY           As Single = 1
 Private Const DEF_ROTATION          As Single = 0
+Private Const DEF_ZOOM              As Single = 1
 Private Const DEF_MASKCOLOR         As Long = vbMagenta
 Private Const DEF_AUTOREDRAW        As Boolean = False
 Private Const DEF_STRETCH           As Boolean = False
@@ -131,7 +135,8 @@ Private m_oPicture              As StdPicture
 Private m_clrMask               As OLE_COLOR
 Private m_bAutoRedraw           As Boolean
 Private m_sngOpacity            As Single
-Private m_sngRotation              As Single
+Private m_sngRotation           As Single
+Private m_sngZoom               As Single
 Private m_bStretch              As Boolean
 '--- run-time
 Private m_eContainerScaleMode   As ScaleModeConstants
@@ -171,9 +176,8 @@ Property Set Picture(oValue As StdPicture)
         pvPreparePicture m_oPicture, m_clrMask, m_hPictureBitmap, m_hPictureAttributes
         If Not m_bStretch And TypeOf Extender Is VBControlExtender Then
             pvSizeExtender m_hPictureBitmap, Extender
-        Else
-            pvRefresh
         End If
+        pvRefresh
         PropertyChanged
     End If
 End Property
@@ -227,6 +231,21 @@ Property Let Rotation(ByVal sngValue As Single)
     End If
 End Property
 
+Property Get Zoom() As Single
+    Zoom = m_sngZoom
+End Property
+
+Property Let Zoom(ByVal sngValue As Single)
+    If m_sngZoom <> sngValue Then
+        m_sngZoom = sngValue
+        If Not m_bStretch And TypeOf Extender Is VBControlExtender Then
+            pvSizeExtender m_hPictureBitmap, Extender
+        End If
+        pvRefresh
+        PropertyChanged
+    End If
+End Property
+
 Property Get Stretch() As Boolean
     Stretch = m_bStretch
 End Property
@@ -236,9 +255,8 @@ Property Let Stretch(ByVal bValue As Boolean)
         m_bStretch = bValue
         If Not m_bStretch And TypeOf Extender Is VBControlExtender Then
             pvSizeExtender m_hPictureBitmap, Extender
-        Else
-            pvRefresh
         End If
+        pvRefresh
         PropertyChanged
     End If
 End Property
@@ -438,6 +456,7 @@ Private Function pvPrepareBitmap(hBitmap As Long) As Boolean
     Dim lHeight         As Long
     Dim sngPicWidth     As Single
     Dim sngPicHeight    As Single
+    Dim sngZoom         As Single
     
     On Error GoTo EH
     If GdipCreateBitmapFromScan0(ScaleWidth, ScaleHeight, ScaleWidth * 4, PixelFormat32bppPARGB, 0, hNewBitmap) <> 0 Then
@@ -457,21 +476,25 @@ Private Function pvPrepareBitmap(hBitmap As Long) As Boolean
             If GdipGetImageDimension(m_hPictureBitmap, sngPicWidth, sngPicHeight) <> 0 Then
                 GoTo QH
             End If
-            If GdipTranslateWorldTransform(hGraphics, lWidth / 2, lHeight / 2, 0) <> 0 Then
+            sngZoom = IIf(Not m_bStretch, m_sngZoom, 1)
+            If GdipRotateWorldTransform(hGraphics, m_sngRotation, MatrixOrderAppend) <> 0 Then
                 GoTo QH
             End If
-            If GdipRotateWorldTransform(hGraphics, m_sngRotation, 0) <> 0 Then
+            If GdipTranslateWorldTransform(hGraphics, lWidth / 2 / sngZoom, lHeight / 2 / sngZoom, MatrixOrderAppend) <> 0 Then
                 GoTo QH
             End If
-            If Stretch Then
+            If GdipScaleWorldTransform(hGraphics, sngZoom, sngZoom, MatrixOrderAppend) <> 0 Then
+                GoTo QH
+            End If
+            If m_bStretch Then
                 lLeft = lLeft - lWidth / 2
                 lTop = lTop - lHeight / 2
                 If GdipDrawImageRectRect(hGraphics, m_hPictureBitmap, lLeft, lTop, lWidth, lHeight, 0, 0, sngPicWidth, sngPicHeight, , m_hPictureAttributes) <> 0 Then
                     GoTo QH
                 End If
             Else
-                lLeft = lLeft - sngPicWidth / 2
-                lTop = lTop - sngPicHeight / 2
+                lLeft = lLeft - sngZoom * sngPicWidth / 2
+                lTop = lTop - sngZoom * sngPicHeight / 2
                 If GdipDrawImageRectRect(hGraphics, m_hPictureBitmap, lLeft + (lWidth - sngPicWidth) / 2, lTop + (lHeight - sngPicHeight) / 2, sngPicWidth, sngPicHeight, 0, 0, sngPicWidth, sngPicHeight, , m_hPictureAttributes) <> 0 Then
                     GoTo QH
                 End If
@@ -705,8 +728,8 @@ Private Sub pvSizeExtender(ByVal hBitmap As Long, oExt As VBControlExtender)
     If GdipGetImageDimension(m_hPictureBitmap, sngWidth, sngHeight) <> 0 Then
         GoTo QH
     End If
-    oExt.Width = ScaleX(sngWidth, vbPixels, m_eContainerScaleMode)
-    oExt.Height = ScaleY(sngHeight, vbPixels, m_eContainerScaleMode)
+    oExt.Width = ScaleX(sngWidth * m_sngZoom, vbPixels, m_eContainerScaleMode)
+    oExt.Height = ScaleY(sngHeight * m_sngZoom, vbPixels, m_eContainerScaleMode)
 QH:
 End Sub
 
@@ -923,6 +946,7 @@ Private Sub UserControl_InitProperties()
     AutoRedraw = DEF_AUTOREDRAW
     Opacity = DEF_OPACITY
     Rotation = DEF_ROTATION
+    Zoom = DEF_ZOOM
     MaskColor = DEF_MASKCOLOR
     Stretch = DEF_STRETCH
     Exit Sub
@@ -939,6 +963,7 @@ Private Sub UserControl_ReadProperties(PropBag As PropertyBag)
         AutoRedraw = .ReadProperty("AutoRedraw", DEF_AUTOREDRAW)
         Opacity = .ReadProperty("Opacity", DEF_OPACITY)
         Rotation = .ReadProperty("Rotation", DEF_ROTATION)
+        Zoom = .ReadProperty("Zoom", DEF_ZOOM)
         MaskColor = .ReadProperty("MaskColor", DEF_MASKCOLOR)
         Stretch = .ReadProperty("Stretch", DEF_STRETCH)
         Set Picture = PictureFromBuffer(C_ArrayByte(.ReadProperty("Picture", vbNullString)))
@@ -957,6 +982,7 @@ Private Sub UserControl_WriteProperties(PropBag As PropertyBag)
         .WriteProperty "AutoRedraw", AutoRedraw, DEF_AUTOREDRAW
         .WriteProperty "Opacity", Opacity, DEF_OPACITY
         .WriteProperty "Rotation", Rotation, DEF_ROTATION
+        .WriteProperty "Zoom", Zoom, DEF_ZOOM
         .WriteProperty "MaskColor", MaskColor, DEF_MASKCOLOR
         .WriteProperty "Stretch", Stretch, DEF_STRETCH
         .WriteProperty "Picture", PictureToBuffer(m_oPicture), vbNullString

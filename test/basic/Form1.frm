@@ -25,14 +25,14 @@ Begin VB.Form Form1
       Picture         =   "Form1.frx":0000
    End
    Begin Project1.AlphaBlendImage AlphaBlendImage1 
-      Height          =   1728
-      Left            =   2520
-      Top             =   2100
-      Width           =   1728
-      _ExtentX        =   3048
-      _ExtentY        =   3048
+      Height          =   768
+      Left            =   2184
+      Top             =   2016
+      Width           =   768
+      _ExtentX        =   1355
+      _ExtentY        =   1355
       Opacity         =   0.5
-      Stretch         =   -1  'True
+      Zoom            =   2
       Picture         =   "Form1.frx":0018
    End
    Begin VB.Image Image1 
