@@ -35,6 +35,11 @@ Private Const STR_MODULE_NAME As String = "AlphaBlendImage"
 
 Event Click()
 Event OwnerDraw(ByVal hGraphics As Long, ClientLeft As Long, ClientTop As Long, ClientWidth As Long, ClientHeight As Long, ByVal hPicture As Long)
+Event DblClick()
+Event ContextMenu()
+Event MouseDown(Button As Integer, Shift As Integer, X As Single, Y As Single)
+Event MouseMove(Button As Integer, Shift As Integer, X As Single, Y As Single)
+Event MouseUp(Button As Integer, Shift As Integer, X As Single, Y As Single)
 
 '=========================================================================
 ' API
@@ -146,6 +151,10 @@ Private m_hBitmap               As Long
 Private m_hPictureBitmap        As Long
 Private m_hPictureAttributes    As Long
 Private m_hRedrawDib            As Long
+Private m_nDownButton           As Integer
+Private m_nDownShift            As Integer
+Private m_sngDownX              As Single
+Private m_sngDownY              As Single
 
 Private Type UcsRgbQuad
     R                   As Byte
@@ -599,7 +608,7 @@ Private Function pvPreparePicture(oPicture As StdPicture, ByVal clrMask As OLE_C
                     If GdipCreateImageAttributes(hNewAttributes) <> 0 Then
                         GoTo QH
                     End If
-                    If GdipSetImageAttributesColorKeys(hNewAttributes, 0, 1, pvTranslateColor(clrMask), pvTranslateColor(clrMask)) <> 0 Then
+                    If GdipSetImageAttributesColorKeys(hNewAttributes, 0, 1, TranslateColor(clrMask), TranslateColor(clrMask)) <> 0 Then
                         GoTo QH
                     End If
                 End If
@@ -733,6 +742,15 @@ Private Sub pvSizeExtender(ByVal hBitmap As Long, oExt As VBControlExtender)
 QH:
 End Sub
 
+Private Sub pvHandleMouseDown(Button As Integer, Shift As Integer, X As Single, Y As Single)
+    m_nDownButton = Button
+    m_nDownShift = Shift
+    m_sngDownX = X
+    m_sngDownY = Y
+End Sub
+
+'= common ================================================================
+
 Private Function pvCreateDib(ByVal hMemDC As Long, ByVal lWidth As Long, ByVal lHeight As Long, hDib As Long) As Boolean
     Const FUNC_NAME     As String = "pvCreateDib"
     Dim uHdr            As BITMAPINFOHEADER
@@ -760,7 +778,7 @@ EH:
     Resume QH
 End Function
 
-Private Function pvTranslateColor(ByVal clrValue As OLE_COLOR, Optional ByVal Alpha As Single = 1) As Long
+Private Function TranslateColor(ByVal clrValue As OLE_COLOR, Optional ByVal Alpha As Single = 1) As Long
     Dim uQuad           As UcsRgbQuad
     Dim lTemp           As Long
     
@@ -776,7 +794,7 @@ Private Function pvTranslateColor(ByVal clrValue As OLE_COLOR, Optional ByVal Al
     Else
         uQuad.A = lTemp
     End If
-    Call CopyMemory(pvTranslateColor, uQuad, 4)
+    Call CopyMemory(TranslateColor, uQuad, 4)
 End Function
 
 Private Function HM2Pix(ByVal Value As Single) As Long
@@ -867,8 +885,41 @@ End Function
 ' Events
 '=========================================================================
 
-Private Sub UserControl_Click()
-    RaiseEvent Click
+Private Sub UserControl_MouseDown(Button As Integer, Shift As Integer, X As Single, Y As Single)
+    RaiseEvent MouseDown(Button, Shift, ScaleX(X, ScaleMode, m_eContainerScaleMode), ScaleY(Y, ScaleMode, m_eContainerScaleMode))
+    pvHandleMouseDown Button, Shift, X, Y
+End Sub
+
+Private Sub UserControl_MouseMove(Button As Integer, Shift As Integer, X As Single, Y As Single)
+    RaiseEvent MouseMove(Button, Shift, ScaleX(X, ScaleMode, m_eContainerScaleMode), ScaleY(Y, ScaleMode, m_eContainerScaleMode))
+End Sub
+
+Private Sub UserControl_MouseUp(Button As Integer, Shift As Integer, X As Single, Y As Single)
+    Const FUNC_NAME     As String = "UserControl_MouseUp"
+    
+    On Error GoTo EH
+    RaiseEvent MouseUp(Button, Shift, ScaleX(X, ScaleMode, m_eContainerScaleMode), ScaleY(Y, ScaleMode, m_eContainerScaleMode))
+    If Button = -1 Then
+        GoTo QH
+    End If
+    If Button <> 0 And X >= 0 And X < ScaleWidth And Y >= 0 And Y < ScaleHeight Then
+        If (m_nDownButton And Button And vbLeftButton) <> 0 Then
+            RaiseEvent Click
+        ElseIf (m_nDownButton And Button And vbRightButton) <> 0 Then
+            RaiseEvent ContextMenu
+        End If
+    End If
+    m_nDownButton = 0
+QH:
+    Exit Sub
+EH:
+    PrintError FUNC_NAME
+    Resume Next
+End Sub
+
+Private Sub UserControl_DblClick()
+    pvHandleMouseDown vbLeftButton, m_nDownShift, m_sngDownX, m_sngDownY
+    RaiseEvent DblClick
 End Sub
 
 Private Sub UserControl_HitTest(X As Single, Y As Single, HitResult As Integer)
