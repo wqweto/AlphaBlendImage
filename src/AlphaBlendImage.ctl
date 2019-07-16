@@ -492,6 +492,7 @@ End Function
 
 Private Function pvPrepareBitmap(hBitmap As Long) As Boolean
     Const FUNC_NAME     As String = "pvPrepareBitmap"
+    Const EPSILON       As Single = 0.0001
     Dim hGraphics       As Long
     Dim hNewBitmap      As Long
     Dim lLeft           As Long
@@ -520,7 +521,11 @@ Private Function pvPrepareBitmap(hBitmap As Long) As Boolean
             If GdipGetImageDimension(m_hPictureBitmap, sngPicWidth, sngPicHeight) <> 0 Then
                 GoTo QH
             End If
-            sngZoom = IIf(Not m_bStretch, m_sngZoom, 1)
+            If Not m_bStretch And Abs(m_sngZoom) > EPSILON Then
+                sngZoom = m_sngZoom
+            Else
+                sngZoom = 1
+            End If
             If GdipRotateWorldTransform(hGraphics, m_sngRotation, MatrixOrderAppend) <> 0 Then
                 GoTo QH
             End If
