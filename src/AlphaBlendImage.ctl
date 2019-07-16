@@ -58,7 +58,6 @@ Private Const InterpolationModeHighQualityBicubic As Long = 7
 Private Const MatrixOrderAppend             As Long = 1
 
 Private Declare Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (lpDst As Any, lpSrc As Any, ByVal ByteLength As Long)
-Private Declare Function ArrPtr Lib "msvbvm60" Alias "VarPtr" (Ptr() As Any) As Long
 Private Declare Function OleTranslateColor Lib "oleaut32" (ByVal lOleColor As Long, ByVal lHPalette As Long, ByVal lColorRef As Long) As Long
 Private Declare Function CreateCompatibleDC Lib "gdi32" (ByVal hDC As Long) As Long
 Private Declare Function DeleteDC Lib "gdi32" (ByVal hDC As Long) As Long
@@ -69,7 +68,6 @@ Private Declare Function GetIconInfo Lib "user32" (ByVal hIcon As Long, pIconInf
 Private Declare Function GetDIBits Lib "gdi32" (ByVal hDC As Long, ByVal hBitmap As Long, ByVal nStartScan As Long, ByVal nNumScans As Long, lpBits As Any, lpBI As Any, ByVal wUsage As Long) As Long
 Private Declare Function CreateDIBSection Lib "gdi32" (ByVal hDC As Long, lpBitsInfo As BITMAPINFOHEADER, ByVal wUsage As Long, lpBits As Long, ByVal Handle As Long, ByVal dw As Long) As Long
 Private Declare Function AlphaBlend Lib "msimg32" (ByVal hDestDC As Long, ByVal lX As Long, ByVal lY As Long, ByVal nWidth As Long, ByVal nHeight As Long, ByVal hSrcDC As Long, ByVal xSrc As Long, ByVal ySrc As Long, ByVal widthSrc As Long, ByVal heightSrc As Long, ByVal blendFunct As Long) As Boolean
-Private Declare Function ApiDeleteFile Lib "kernel32" Alias "DeleteFileA" (ByVal lpFileName As String) As Long
 Private Declare Function OleCreatePictureIndirect Lib "oleaut32" (lpPictDesc As PICTDESC, riid As Any, ByVal fPictureOwnsHandle As Long, ipic As IPicture) As Long
 Private Declare Function CreateBitmap Lib "gdi32" (ByVal nWidth As Long, ByVal nHeight As Long, ByVal nPlanes As Long, ByVal nBitCount As Long, lpBits As Any) As Long
 Private Declare Function CreateIconIndirect Lib "user32" (pIconInfo As ICONINFO) As Long
@@ -838,65 +836,6 @@ Private Function HM2Pix(ByVal Value As Single) As Long
    HM2Pix = Int(Value * 1440 / 2540 / Screen.TwipsPerPixelX + 0.5!)
 End Function
 
-Private Function Peek(ByVal lPtr As Long) As Long
-    Call CopyMemory(Peek, ByVal lPtr, 4)
-End Function
-
-Private Function C_ArrayByte(Value As Variant) As Byte()
-    On Error GoTo QH
-    If Not IsEmpty(Value) Then
-        C_ArrayByte = Value
-    End If
-QH:
-End Function
-
-Private Function PictureFromBuffer(baBuffer() As Byte) As StdPicture
-    Dim sFile           As String
-    Dim nFile           As Integer
-    
-    On Error GoTo QH
-    If Peek(ArrPtr(baBuffer)) = 0 Then
-        GoTo QH
-    End If
-    If UBound(baBuffer) < 0 Then
-        GoTo QH
-    End If
-    sFile = Environ$("TMP") & "\$~" & STR_MODULE_NAME & ".tmp"
-    Call ApiDeleteFile(sFile)
-    nFile = FreeFile
-    Open sFile For Binary Access Write Shared As nFile
-    Put nFile, , baBuffer
-    Close nFile
-    Set PictureFromBuffer = LoadPicture(sFile)
-    Call ApiDeleteFile(sFile)
-QH:
-End Function
-
-Private Function PictureToBuffer(oPic As StdPicture) As Byte()
-    Dim sFile           As String
-    Dim nFile           As Integer
-    Dim baBuffer()      As Byte
-    
-    On Error GoTo QH
-    If oPic Is Nothing Then
-        GoTo QH
-    End If
-    sFile = Environ$("TMP") & "\$~" & STR_MODULE_NAME & ".tmp"
-    Call ApiDeleteFile(sFile)
-    SavePicture oPic, sFile
-    baBuffer = vbNullString
-    nFile = FreeFile
-    Open sFile For Binary Access Read Shared As nFile
-    If LOF(nFile) > 0 Then
-        ReDim baBuffer(0 To LOF(nFile) - 1) As Byte
-        Get nFile, , baBuffer
-    End If
-    Close nFile
-    Call ApiDeleteFile(sFile)
-    PictureToBuffer = baBuffer
-QH:
-End Function
-
 Private Function ToScaleMode(sScaleUnits As String) As ScaleModeConstants
     Select Case sScaleUnits
     Case "Twip"
@@ -1048,14 +987,19 @@ Private Sub UserControl_ReadProperties(PropBag As PropertyBag)
     On Error GoTo EH
     m_eContainerScaleMode = ToScaleMode(Ambient.ScaleUnits)
     With PropBag
-        AutoRedraw = .ReadProperty("AutoRedraw", DEF_AUTOREDRAW)
-        Opacity = .ReadProperty("Opacity", DEF_OPACITY)
-        Rotation = .ReadProperty("Rotation", DEF_ROTATION)
-        Zoom = .ReadProperty("Zoom", DEF_ZOOM)
-        MaskColor = .ReadProperty("MaskColor", DEF_MASKCOLOR)
-        Stretch = .ReadProperty("Stretch", DEF_STRETCH)
-        Set Picture = PictureFromBuffer(C_ArrayByte(.ReadProperty("Picture", vbNullString)))
+        m_bAutoRedraw = .ReadProperty("AutoRedraw", DEF_AUTOREDRAW)
+        m_sngOpacity = .ReadProperty("Opacity", DEF_OPACITY)
+        m_sngRotation = .ReadProperty("Rotation", DEF_ROTATION)
+        m_sngZoom = .ReadProperty("Zoom", DEF_ZOOM)
+        m_clrMask = .ReadProperty("MaskColor", DEF_MASKCOLOR)
+        m_bStretch = .ReadProperty("Stretch", DEF_STRETCH)
+        Set m_oPicture = .ReadProperty("Picture", Nothing)
     End With
+    pvPreparePicture m_oPicture, m_clrMask, m_hPictureBitmap, m_hPictureAttributes
+    If Not m_bStretch And TypeOf Extender Is VBControlExtender Then
+        pvSizeExtender m_hPictureBitmap, Extender
+    End If
+    pvRefresh
     Exit Sub
 EH:
     PrintError FUNC_NAME
@@ -1067,13 +1011,13 @@ Private Sub UserControl_WriteProperties(PropBag As PropertyBag)
     
     On Error GoTo EH
     With PropBag
-        .WriteProperty "AutoRedraw", AutoRedraw, DEF_AUTOREDRAW
-        .WriteProperty "Opacity", Opacity, DEF_OPACITY
-        .WriteProperty "Rotation", Rotation, DEF_ROTATION
-        .WriteProperty "Zoom", Zoom, DEF_ZOOM
-        .WriteProperty "MaskColor", MaskColor, DEF_MASKCOLOR
-        .WriteProperty "Stretch", Stretch, DEF_STRETCH
-        .WriteProperty "Picture", PictureToBuffer(m_oPicture), vbNullString
+        .WriteProperty "AutoRedraw", m_bAutoRedraw, DEF_AUTOREDRAW
+        .WriteProperty "Opacity", m_sngOpacity, DEF_OPACITY
+        .WriteProperty "Rotation", m_sngRotation, DEF_ROTATION
+        .WriteProperty "Zoom", m_sngZoom, DEF_ZOOM
+        .WriteProperty "MaskColor", m_clrMask, DEF_MASKCOLOR
+        .WriteProperty "Stretch", m_bStretch, DEF_STRETCH
+        .WriteProperty "Picture", m_oPicture, Nothing
     End With
     Exit Sub
 EH:
