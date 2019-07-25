@@ -522,7 +522,7 @@ Private Function pvPrepareBitmap(hBitmap As Long) As Boolean
                 GoTo QH
             End If
             If Not m_bStretch And Abs(m_sngZoom) > EPSILON Then
-                sngZoom = m_sngZoom
+                sngZoom = Abs(m_sngZoom)
             Else
                 sngZoom = 1
             End If
@@ -777,8 +777,8 @@ Private Sub pvSizeExtender(ByVal hBitmap As Long, oExt As VBControlExtender)
     If GdipGetImageDimension(m_hPictureBitmap, sngWidth, sngHeight) <> 0 Then
         GoTo QH
     End If
-    oExt.Width = ScaleX(sngWidth * m_sngZoom, vbPixels, m_eContainerScaleMode)
-    oExt.Height = ScaleY(sngHeight * m_sngZoom, vbPixels, m_eContainerScaleMode)
+    oExt.Width = ScaleX(sngWidth * Abs(m_sngZoom), vbPixels, m_eContainerScaleMode)
+    oExt.Height = ScaleY(sngHeight * Abs(m_sngZoom), vbPixels, m_eContainerScaleMode)
 QH:
 End Sub
 
