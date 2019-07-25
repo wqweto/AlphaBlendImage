@@ -1,5 +1,6 @@
 # Auto detect text files and perform LF normalization
 * text=auto eol=crlf working-tree-encoding=windows-1251
+* linguist-language=Visual Basic
 
 *.dll binary
 *.pdb binary
