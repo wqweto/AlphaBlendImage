@@ -555,15 +555,13 @@ Private Function pvPrepareBitmap(hBitmap As Long) As Boolean
             If GdipScaleWorldTransform(hGraphics, sngZoom, sngZoom, MatrixOrderAppend) <> 0 Then
                 GoTo QH
             End If
+            lLeft = lLeft - lWidth / 2
+            lTop = lTop - lHeight / 2
             If m_bStretch Then
-                lLeft = lLeft - lWidth / 2
-                lTop = lTop - lHeight / 2
                 If GdipDrawImageRectRect(hGraphics, m_hPictureBitmap, lLeft, lTop, lWidth, lHeight, 0, 0, sngPicWidth, sngPicHeight, , m_hPictureAttributes) <> 0 Then
                     GoTo QH
                 End If
             Else
-                lLeft = lLeft - sngZoom * sngPicWidth / 2
-                lTop = lTop - sngZoom * sngPicHeight / 2
                 If GdipDrawImageRectRect(hGraphics, m_hPictureBitmap, lLeft + (lWidth - sngPicWidth) / 2, lTop + (lHeight - sngPicHeight) / 2, sngPicWidth, sngPicHeight, 0, 0, sngPicWidth, sngPicHeight, , m_hPictureAttributes) <> 0 Then
                     GoTo QH
                 End If
