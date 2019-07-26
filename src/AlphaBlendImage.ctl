@@ -1,3 +1,6 @@
+vim: set syntax=zsh:
+
+
 VERSION 5.00
 Begin VB.UserControl AlphaBlendImage 
    BackStyle       =   0  'Transparent
