@@ -401,10 +401,11 @@ Public Sub Repaint()
         pvPrepareAttribs m_sngOpacity, m_hAttributes
         Refresh
     End If
+QH:
     Exit Sub
 EH:
     PrintError FUNC_NAME
-    Resume Next
+    Resume QH
 End Sub
 
 Public Function GdipLoadPicture(sFileName As String) As StdPicture
@@ -420,7 +421,7 @@ QH:
     Exit Function
 EH:
     PrintError FUNC_NAME
-    Resume Next
+    Resume QH
 End Function
 
 Public Function GdipLoadPictureArray(baBuffer() As Byte) As StdPicture
@@ -441,7 +442,7 @@ QH:
     Exit Function
 EH:
     PrintError FUNC_NAME
-    Resume Next
+    Resume QH
 End Function
 
 Public Function GdipSetClipboardDib(oPic As StdPicture, Optional ByVal hWnd As Long) As Boolean
@@ -517,7 +518,7 @@ QH:
     Exit Function
 EH:
     PrintError FUNC_NAME
-    Resume Next
+    Resume QH
 End Function
 
 Public Function GdipSetClipboardDibV5(oPic As StdPicture, Optional ByVal hWnd As Long) As Boolean
@@ -592,7 +593,7 @@ QH:
     Exit Function
 EH:
     PrintError FUNC_NAME
-    Resume Next
+    Resume QH
 End Function
 
 '= private ===============================================================
@@ -1160,7 +1161,7 @@ QH:
     Exit Sub
 EH:
     PrintError FUNC_NAME
-    Resume Next
+    Resume QH
 End Sub
 
 Private Sub UserControl_DblClick()
@@ -1270,10 +1271,11 @@ Private Sub UserControl_ReadProperties(PropBag As PropertyBag)
         pvSizeExtender m_hPictureBitmap, Extender
     End If
     pvRefresh
+QH:
     Exit Sub
 EH:
     PrintError FUNC_NAME
-    Resume Next
+    Resume QH
 End Sub
 
 Private Sub UserControl_WriteProperties(PropBag As PropertyBag)
@@ -1289,10 +1291,11 @@ Private Sub UserControl_WriteProperties(PropBag As PropertyBag)
         .WriteProperty "Stretch", m_bStretch, DEF_STRETCH
         .WriteProperty "Picture", m_oPicture, Nothing
     End With
+QH:
     Exit Sub
 EH:
     PrintError FUNC_NAME
-    Resume Next
+    Resume QH
 End Sub
 
 Private Sub UserControl_AmbientChanged(PropertyName As String)
