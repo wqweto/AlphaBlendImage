@@ -445,7 +445,7 @@ EH:
     Resume QH
 End Function
 
-Public Function GdipSetClipboardDib(oPic As StdPicture, Optional ByVal hWnd As Long) As Boolean
+Public Function GdipSetClipboardDib(oPic As StdPicture) As Boolean
     Const FUNC_NAME     As String = "GdipSetClipboardDib"
     Const SIGN_BIT      As Long = &H80000000
     Dim hPictureBitmap  As Long
@@ -500,6 +500,9 @@ Public Function GdipSetClipboardDib(oPic As StdPicture, Optional ByVal hWnd As L
     '--- success
     GdipSetClipboardDib = True
 QH:
+    If bNeedClipClose Then
+        Call CloseClipboard
+    End If
     If hMem <> 0 Then
         Call GlobalFree(hMem)
     End If
@@ -512,16 +515,13 @@ QH:
     If hPictureAttributes <> 0 Then
         Call GdipDisposeImageAttributes(hPictureAttributes)
     End If
-    If bNeedClipClose Then
-        Call CloseClipboard
-    End If
     Exit Function
 EH:
     PrintError FUNC_NAME
     Resume QH
 End Function
 
-Public Function GdipSetClipboardDibV5(oPic As StdPicture, Optional ByVal hWnd As Long) As Boolean
+Public Function GdipSetClipboardDibV5(oPic As StdPicture) As Boolean
     Const FUNC_NAME     As String = "GdipSetClipboardDibV5"
     Const SIGN_BIT      As Long = &H80000000
     Dim hPictureBitmap  As Long
@@ -575,6 +575,9 @@ Public Function GdipSetClipboardDibV5(oPic As StdPicture, Optional ByVal hWnd As
     '--- success
     GdipSetClipboardDibV5 = True
 QH:
+    If bNeedClipClose Then
+        Call CloseClipboard
+    End If
     If hMem <> 0 Then
         Call GlobalFree(hMem)
     End If
@@ -586,9 +589,6 @@ QH:
     End If
     If hPictureAttributes <> 0 Then
         Call GdipDisposeImageAttributes(hPictureAttributes)
-    End If
-    If bNeedClipClose Then
-        Call CloseClipboard
     End If
     Exit Function
 EH:
