@@ -2,18 +2,25 @@ VERSION 5.00
 Begin VB.Form Form1 
    BackColor       =   &H00FFFFFF&
    Caption         =   "Form1"
-   ClientHeight    =   4872
+   ClientHeight    =   10860
    ClientLeft      =   108
    ClientTop       =   456
-   ClientWidth     =   6324
+   ClientWidth     =   15348
    LinkTopic       =   "Form1"
-   ScaleHeight     =   4872
-   ScaleWidth      =   6324
+   ScaleHeight     =   10860
+   ScaleWidth      =   15348
    StartUpPosition =   3  'Windows Default
    Begin VB.Timer Timer1 
       Interval        =   50
       Left            =   2772
       Top             =   756
+   End
+   Begin VB.Image Image2 
+      Height          =   660
+      Left            =   420
+      Picture         =   "Form1.frx":0000
+      Top             =   2940
+      Width           =   768
    End
    Begin Project1.AlphaBlendImage AlphaBlendImage2 
       Height          =   1440
@@ -31,8 +38,9 @@ Begin VB.Form Form1
       _ExtentX        =   1355
       _ExtentY        =   1355
       Opacity         =   0.5
+      Rotation        =   60
       Zoom            =   2
-      Picture         =   "Form1.frx":0000
+      Picture         =   "Form1.frx":1202
    End
    Begin VB.Image Image1 
       Height          =   1440
@@ -48,11 +56,18 @@ Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
 Option Explicit
 
+Private Sub Form_Click()
+    Form2.Show
+End Sub
+
 Private Sub Form_Load()
     On Error GoTo EH
-    Set AlphaBlendImage1.Picture = AlphaBlendImage1.GdipLoadPictureArray(ReadBinaryFile(App.Path & "\bbb.png"))
+    Set AlphaBlendImage1.Picture = Image2.Picture ' AlphaBlendImage1.GdipLoadPictureArray(ReadBinaryFile(App.Path & "\bbb.png"))  '
     AlphaBlendImage1.Tag = -120
+    AlphaBlendImage1.Width = AlphaBlendImage1.Width * 2
+    AlphaBlendImage1.Height = AlphaBlendImage1.Height * 2
     Set Image1.Picture = AlphaBlendImage1.GdipLoadPicture(App.Path & "\bbb.png")
+    AlphaBlendImage1.GdipSetClipboardDib Image1.Picture
     Image1.Tag = 80
     Exit Sub
 EH:
