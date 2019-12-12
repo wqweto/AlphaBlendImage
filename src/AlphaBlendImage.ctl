@@ -57,13 +57,20 @@ Private Const InterpolationModeHighQualityBicubic As Long = 7
 '--- for Gdip*WorldTransform
 Private Const MatrixOrderAppend             As Long = 1
 '--- for GdipBitmapLockBits
-Private Const ImageLockModeRead             As Long = &H1
+Private Const ImageLockModeRead             As Long = 1
 '--- for GlobalAlloc
 Private Const GMEM_DDESHARE                 As Long = &H2000
 Private Const GMEM_MOVEABLE                 As Long = &H2
 '--- for SetClipboardData
 Private Const CF_DIBV5                      As Long = 17
 Private Const BI_BITFIELDS                  As Long = 3
+'--- for GetWindowLong
+Private Const GWL_EXSTYLE                   As Long = -20
+Private Const WS_EX_LAYERED                 As Long = &H80000
+'--- for UpdateLayeredWindow
+Private Const ULW_ALPHA                     As Long = 2
+Private Const AC_SRC_OVER                   As Long = 0
+Private Const AC_SRC_ALPHA                  As Long = 1
 
 Private Declare Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (lpDst As Any, lpSrc As Any, ByVal ByteLength As Long)
 Private Declare Function ArrPtr Lib "msvbvm60" Alias "VarPtr" (Ptr() As Any) As Long
@@ -84,6 +91,12 @@ Private Declare Function DestroyIcon Lib "user32" (ByVal hIcon As Long) As Long
 Private Declare Function SHCreateMemStream Lib "shlwapi" Alias "#12" (ByRef pInit As Any, ByVal cbInit As Long) As IUnknown
 Private Declare Function CreateSolidBrush Lib "gdi32" (ByVal clrColor As Long) As Long
 Private Declare Function FillRect Lib "user32" (ByVal hDC As Long, lpRect As RECT, ByVal hBrush As Long) As Long
+Private Declare Function GetWindowLong Lib "user32" Alias "GetWindowLongA" (ByVal hWnd As Long, ByVal nIndex As Long) As Long
+Private Declare Function SetWindowLong Lib "user32" Alias "SetWindowLongA" (ByVal hWnd As Long, ByVal nIndex As Long, ByVal dwNewLong As Long) As Long
+Private Declare Function UpdateLayeredWindow Lib "user32.dll" (ByVal hWnd As Long, ByVal hdcDest As Long, ptDst As Any, pSize As Any, ByVal hdcSrc As Long, ptSrc As Any, ByVal crKey As Long, pBlend As Any, ByVal dwFlags As Long) As Long
+Private Declare Function GetDC Lib "user32" (ByVal hWnd As Long) As Long
+Private Declare Function ReleaseDC Lib "user32" (ByVal hWnd As Long, ByVal hDC As Long) As Long
+Private Declare Function GetWindowRect Lib "user32" (ByVal hWnd As Long, lpRect As Any) As Long
 '--- clipboard support
 Private Declare Function OpenClipboard Lib "user32" (ByVal hWnd As Long) As Long
 Private Declare Function CloseClipboard Lib "user32" () As Long
@@ -117,6 +130,7 @@ Private Declare Function GdipRotateWorldTransform Lib "gdiplus" (ByVal hGraphics
 Private Declare Function GdipSetInterpolationMode Lib "gdiplus" (ByVal hGraphics As Long, ByVal lMode As Long) As Long
 Private Declare Function GdipBitmapLockBits Lib "gdiplus" (ByVal hBitmap As Long, lpRect As Any, ByVal lFlags As Long, ByVal lPixelFormat As Long, uLockedBitmapData As BitmapData) As Long
 Private Declare Function GdipBitmapUnlockBits Lib "gdiplus" (ByVal hBitmap As Long, uLockedBitmapData As BitmapData) As Long
+Private Declare Function GdipCreateHBITMAPFromBitmap Lib "gdiplus" (ByVal hBitmap As Long, hbmReturn As Long, ByVal clrBackground As Long) As Long
 
 Private Type BITMAPINFOHEADER
     biSize              As Long
@@ -206,6 +220,18 @@ Private Type BITMAPV5HEADER
     bV5ProfileData      As Long
     bV5ProfileSize      As Long
     bV5Reserved         As Long
+End Type
+
+Private Type BLENDFUNCTION
+    BlendOp             As Byte
+    BlendFlags          As Byte
+    SourceConstantAlpha As Byte
+    AlphaFormat         As Byte
+End Type
+
+Private Type POINTAPI
+    X                   As Long
+    Y                   As Long
 End Type
 
 '=========================================================================
@@ -305,7 +331,7 @@ End Property
 
 Property Let Opacity(ByVal sngValue As Single)
     If m_sngOpacity <> sngValue Then
-        m_sngOpacity = sngValue
+        m_sngOpacity = IIf(sngValue > 1, 1, IIf(sngValue < 0, 0, sngValue))
         pvRefresh
         PropertyChanged
     End If
@@ -589,6 +615,70 @@ QH:
     End If
     If hPictureAttributes <> 0 Then
         Call GdipDisposeImageAttributes(hPictureAttributes)
+    End If
+    Exit Function
+EH:
+    PrintError FUNC_NAME
+    Resume QH
+End Function
+
+Public Function GdipUpdateLayeredWindow(ByVal hWnd As Long) As Boolean
+    Const FUNC_NAME     As String = "GdipUpdateLayeredWindow"
+    Dim lStyle          As Long
+    Dim hScreenDC       As Long
+    Dim hMemDC          As Long
+    Dim hBmp            As Long
+    Dim hPrevBmp        As Long
+    Dim uBlend          As BLENDFUNCTION
+    Dim uRect(0 To 1)   As POINTAPI
+    Dim ptSrc           As POINTAPI
+    
+    On Error GoTo EH
+    lStyle = GetWindowLong(hWnd, GWL_EXSTYLE)
+    If (lStyle And WS_EX_LAYERED) = 0 Then
+        Call SetWindowLong(hWnd, GWL_EXSTYLE, lStyle Or WS_EX_LAYERED)
+    End If
+    hScreenDC = GetDC(0)
+    If hScreenDC = 0 Then
+        GoTo QH
+    End If
+    hMemDC = CreateCompatibleDC(hScreenDC)
+    If hMemDC = 0 Then
+        GoTo QH
+    End If
+    If GdipCreateHBITMAPFromBitmap(m_hBitmap, hBmp, 0) <> 0 Then
+        GoTo QH
+    End If
+    hPrevBmp = SelectObject(hMemDC, hBmp)
+    If hPrevBmp = 0 Then
+        GoTo QH
+    End If
+    Call GetWindowRect(hWnd, uRect(0))
+    With uRect(1)
+        .X = .X - uRect(0).X
+        .Y = .Y - uRect(0).Y
+    End With
+    With uBlend
+        .BlendOp = AC_SRC_OVER
+        .BlendFlags = 0
+        .SourceConstantAlpha = 255 * m_sngOpacity
+        .AlphaFormat = AC_SRC_ALPHA
+    End With
+    Call UpdateLayeredWindow(hWnd, hScreenDC, uRect(0), uRect(1), hMemDC, ptSrc, 0, uBlend, ULW_ALPHA)
+    '--- success
+    GdipUpdateLayeredWindow = True
+QH:
+    If hBmp <> 0 Then
+        If hPrevBmp <> 0 Then
+            Call SelectObject(hMemDC, hPrevBmp)
+        End If
+        Call DeleteObject(hBmp)
+    End If
+    If hMemDC <> 0 Then
+        Call DeleteDC(hMemDC)
+    End If
+    If hScreenDC <> 0 Then
+        Call ReleaseDC(0, hScreenDC)
     End If
     Exit Function
 EH:
@@ -1183,7 +1273,6 @@ End Sub
 
 Private Sub UserControl_Paint()
     Const FUNC_NAME     As String = "UserControl_Paint"
-    Const AC_SRC_ALPHA  As Long = 1
     Const Opacity       As Long = &HFF
     Dim hMemDC          As Long
     Dim hPrevDib        As Long
@@ -1222,6 +1311,9 @@ DefPaint:
             m_hRedrawDib = 0
         End If
         Line (0, 0)-(ScaleWidth - 1, ScaleHeight - 1), vbBlack, B
+    End If
+    If (GetWindowLong(ContainerHwnd, GWL_EXSTYLE) And WS_EX_LAYERED) <> 0 Then
+        GdipUpdateLayeredWindow ContainerHwnd
     End If
 QH:
     On Error Resume Next
