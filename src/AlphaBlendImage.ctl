@@ -131,6 +131,8 @@ Private Declare Function GdipSetInterpolationMode Lib "gdiplus" (ByVal hGraphics
 Private Declare Function GdipBitmapLockBits Lib "gdiplus" (ByVal hBitmap As Long, lpRect As Any, ByVal lFlags As Long, ByVal lPixelFormat As Long, uLockedBitmapData As BitmapData) As Long
 Private Declare Function GdipBitmapUnlockBits Lib "gdiplus" (ByVal hBitmap As Long, uLockedBitmapData As BitmapData) As Long
 Private Declare Function GdipCreateHBITMAPFromBitmap Lib "gdiplus" (ByVal hBitmap As Long, hbmReturn As Long, ByVal clrBackground As Long) As Long
+Private Declare Function GdipBitmapGetPixel Lib "gdiplus" (ByVal hBitmap As Long, ByVal lX As Long, ByVal lY As Long, clrPixel As Long) As Long
+Private Declare Function GdipBitmapSetPixel Lib "gdiplus" (ByVal hBitmap As Long, ByVal lX As Long, ByVal lY As Long, ByVal clrPixel As Long) As Long
 
 Private Type BITMAPINFOHEADER
     biSize              As Long
@@ -377,6 +379,20 @@ Property Let Stretch(ByVal bValue As Boolean)
         pvRefresh
         PropertyChanged
     End If
+End Property
+
+Property Get PixelARGB(ByVal lX As Long, ByVal lY As Long) As Long
+    If m_hBitmap = 0 Then
+        pvPrepareBitmap m_hBitmap
+    End If
+    Call GdipBitmapGetPixel(m_hBitmap, lX, lY, PixelARGB)
+End Property
+
+Property Let PixelARGB(ByVal lX As Long, ByVal lY As Long, ByVal clrValue As Long)
+    If m_hBitmap = 0 Then
+        pvPrepareBitmap m_hBitmap
+    End If
+    Call GdipBitmapSetPixel(m_hBitmap, lX, lY, clrValue)
 End Property
 
 '=========================================================================
