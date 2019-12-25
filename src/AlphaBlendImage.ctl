@@ -71,6 +71,14 @@ Private Const WS_EX_LAYERED                 As Long = &H80000
 Private Const ULW_ALPHA                     As Long = 2
 Private Const AC_SRC_OVER                   As Long = 0
 Private Const AC_SRC_ALPHA                  As Long = 1
+'--- for CreateImagingFactory
+Private Const WINCODEC_SDK_VERSION1         As Long = &H236&
+Private Const WINCODEC_SDK_VERSION2         As Long = &H237&
+'--- for CreateDecoderFromFilename
+Private Const GENERIC_READ                  As Long = &H80000000
+'--- for IWICBitmapScaler
+Private Const WICBitmapInterpolationModeFant As Long = 3
+Private Const WICBitmapInterpolationModeHighQualityCubic As Long = 4
 
 Private Declare Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (lpDst As Any, lpSrc As Any, ByVal ByteLength As Long)
 Private Declare Function ArrPtr Lib "msvbvm60" Alias "VarPtr" (Ptr() As Any) As Long
@@ -88,7 +96,7 @@ Private Declare Function OleCreatePictureIndirect Lib "oleaut32" (lpPictDesc As 
 Private Declare Function CreateBitmap Lib "gdi32" (ByVal nWidth As Long, ByVal nHeight As Long, ByVal nPlanes As Long, ByVal nBitCount As Long, lpBits As Any) As Long
 Private Declare Function CreateIconIndirect Lib "user32" (pIconInfo As ICONINFO) As Long
 Private Declare Function DestroyIcon Lib "user32" (ByVal hIcon As Long) As Long
-Private Declare Function SHCreateMemStream Lib "shlwapi" Alias "#12" (ByRef pInit As Any, ByVal cbInit As Long) As IUnknown
+Private Declare Function SHCreateMemStream Lib "shlwapi" Alias "#12" (pInit As Any, ByVal cbInit As Long) As stdole.IUnknown
 Private Declare Function CreateSolidBrush Lib "gdi32" (ByVal clrColor As Long) As Long
 Private Declare Function FillRect Lib "user32" (ByVal hDC As Long, lpRect As RECT, ByVal hBrush As Long) As Long
 Private Declare Function GetWindowLong Lib "user32" Alias "GetWindowLongA" (ByVal hWnd As Long, ByVal nIndex As Long) As Long
@@ -106,7 +114,7 @@ Private Declare Function GlobalAlloc Lib "kernel32" (ByVal wFlags As Long, ByVal
 Private Declare Function GlobalLock Lib "kernel32" (ByVal hMem As Long) As Long
 Private Declare Function GlobalUnlock Lib "kernel32" (ByVal hMem As Long) As Long
 Private Declare Function GlobalFree Lib "kernel32" (ByVal hMem As Long) As Long
-'--- gdi+
+'--- GDI+
 Private Declare Function GdiplusStartup Lib "gdiplus" (hToken As Long, pInputBuf As Any, Optional ByVal pOutputBuf As Long = 0) As Long
 Private Declare Function GdipCreateBitmapFromScan0 Lib "gdiplus" (ByVal lWidth As Long, ByVal lHeight As Long, ByVal lStride As Long, ByVal lPixelFormat As Long, ByVal Scan0 As Long, hBitmap As Long) As Long
 Private Declare Function GdipDisposeImage Lib "gdiplus" (ByVal hImage As Long) As Long
@@ -123,7 +131,7 @@ Private Declare Function GdipCreateBitmapFromHBITMAP Lib "gdiplus" (ByVal hBmp A
 Private Declare Function GdipCreateBitmapFromHICON Lib "gdiplus" (ByVal hIcon As Long, hBitmap As Long) As Long
 Private Declare Function GdipGetImageDimension Lib "gdiplus" (ByVal hImage As Long, nWidth As Single, nHeight As Single) As Long   '
 Private Declare Function GdipLoadImageFromFile Lib "gdiplus" (ByVal sFileName As Long, mImage As Long) As Long
-Private Declare Function GdipLoadImageFromStream Lib "gdiplus" (ByVal pStream As IUnknown, ByRef mImage As Long) As Long
+Private Declare Function GdipLoadImageFromStream Lib "gdiplus" (ByVal pStream As stdole.IUnknown, mImage As Long) As Long
 Private Declare Function GdipTranslateWorldTransform Lib "gdiplus" (ByVal hGraphics As Long, ByVal nDx As Single, ByVal nDy As Single, ByVal lOrder As Long) As Long
 Private Declare Function GdipScaleWorldTransform Lib "gdiplus" (ByVal hGraphics As Long, ByVal nSx As Single, ByVal nSy As Single, ByVal lOrder As Long) As Long
 Private Declare Function GdipRotateWorldTransform Lib "gdiplus" (ByVal hGraphics As Long, ByVal nRotation As Single, ByVal lOrder As Long) As Long
@@ -133,6 +141,19 @@ Private Declare Function GdipBitmapUnlockBits Lib "gdiplus" (ByVal hBitmap As Lo
 Private Declare Function GdipCreateHBITMAPFromBitmap Lib "gdiplus" (ByVal hBitmap As Long, hbmReturn As Long, ByVal clrBackground As Long) As Long
 Private Declare Function GdipBitmapGetPixel Lib "gdiplus" (ByVal hBitmap As Long, ByVal lX As Long, ByVal lY As Long, clrPixel As Long) As Long
 Private Declare Function GdipBitmapSetPixel Lib "gdiplus" (ByVal hBitmap As Long, ByVal lX As Long, ByVal lY As Long, ByVal clrPixel As Long) As Long
+'--- WIC
+Private Declare Function WICCreateImagingFactory_Proxy Lib "windowscodecs" (ByVal SDKVersion As Long, ppIImagingFactory As stdole.IUnknown) As Long
+Private Declare Function IWICImagingFactory_CreateDecoderFromFilename_Proxy Lib "windowscodecs" (ByVal pFactory As stdole.IUnknown, ByVal wzFilename As Long, pguidVendor As Any, ByVal dwDesiredAccess As Long, ByVal lMetadataOptions As Long, ppIDecoder As stdole.IUnknown) As Long
+Private Declare Function IWICImagingFactory_CreateDecoderFromStream_Proxy Lib "windowscodecs" (ByVal pFactory As stdole.IUnknown, ByVal pStream As stdole.IUnknown, pguidVendor As Any, ByVal lMetadataOptions As Long, ppIDecoder As stdole.IUnknown) As Long
+Private Declare Function IWICImagingFactory_CreateFormatConverter_Proxy Lib "windowscodecs" (ByVal pFactory As stdole.IUnknown, ppIFormatConverter As stdole.IUnknown) As Long
+Private Declare Function IWICImagingFactory_CreateBitmapScaler_Proxy Lib "windowscodecs" (ByVal pFactory As stdole.IUnknown, ppIBitmapScaler As stdole.IUnknown) As Long
+Private Declare Function IWICBitmapDecoder_GetFrameCount_Proxy Lib "windowscodecs" (ByVal pThis As stdole.IUnknown, pCount As Long) As Long
+Private Declare Function IWICBitmapDecoder_GetFrame_Proxy Lib "windowscodecs" (ByVal pThis As stdole.IUnknown, ByVal lIndex As Long, ppIBitmapFrame As stdole.IUnknown) As Long
+Private Declare Function IWICBitmapScaler_Initialize_Proxy Lib "windowscodecs" (ByVal pThis As stdole.IUnknown, ByVal pISource As stdole.IUnknown, ByVal uiWidth As Long, ByVal uiHeight As Long, ByVal lMode As Long) As Long
+Private Declare Function IWICBitmapSource_CopyPixels_Proxy Lib "windowscodecs" (ByVal pThis As stdole.IUnknown, prc As Any, ByVal cbStride As Long, ByVal cbBufferSize As Long, pbBuffer As Any) As Long
+Private Declare Function IWICBitmapSource_GetSize_Proxy Lib "windowscodecs" (ByVal pThis As stdole.IUnknown, puiWidth As Long, puiHeight As Long) As Long
+Private Declare Function IWICFormatConverter_Initialize_Proxy Lib "windowscodecs" (ByVal pThis As stdole.IUnknown, ByVal pISource As stdole.IUnknown, dstFormat As Any, ByVal lDither As Long, ByVal pIPalette As stdole.IUnknown, ByVal dblAlphaThresholdPercent As Double, ByVal lPaletteTranslate As Long) As Long
+
 
 Private Type BITMAPINFOHEADER
     biSize              As Long
@@ -266,6 +287,7 @@ Private m_nDownButton           As Integer
 Private m_nDownShift            As Integer
 Private m_sngDownX              As Single
 Private m_sngDownY              As Single
+Private m_pWicFactory           As stdole.IUnknown
 
 Private Type UcsRgbQuad
     R                   As Byte
@@ -450,7 +472,7 @@ EH:
     Resume QH
 End Sub
 
-Public Function GdipLoadPicture(sFileName As String) As StdPicture
+Public Function GdipLoadPicture(sFileName As String, Optional ByVal TargetWidth As Long, Optional ByVal TargetHeight As Long) As StdPicture
     Const FUNC_NAME     As String = "GdipLoadPicture"
     Dim hBitmap         As Long
     
@@ -458,7 +480,7 @@ Public Function GdipLoadPicture(sFileName As String) As StdPicture
     If GdipLoadImageFromFile(StrPtr(sFileName), hBitmap) <> 0 Then
         GoTo QH
     End If
-    Set GdipLoadPicture = pvLoadPicture(hBitmap)
+    Set GdipLoadPicture = pvLoadPicture(hBitmap, Nothing, TargetWidth, TargetHeight)
 QH:
     Exit Function
 EH:
@@ -466,9 +488,9 @@ EH:
     Resume QH
 End Function
 
-Public Function GdipLoadPictureArray(baBuffer() As Byte) As StdPicture
+Public Function GdipLoadPictureArray(baBuffer() As Byte, Optional ByVal TargetWidth As Long, Optional ByVal TargetHeight As Long) As StdPicture
     Const FUNC_NAME     As String = "GdipLoadPictureArray"
-    Dim pStream         As IUnknown
+    Dim pStream         As stdole.IUnknown
     Dim hBitmap         As Long
     
     On Error GoTo EH
@@ -479,7 +501,7 @@ Public Function GdipLoadPictureArray(baBuffer() As Byte) As StdPicture
     If GdipLoadImageFromStream(pStream, hBitmap) <> 0 Then
         GoTo QH
     End If
-    Set GdipLoadPictureArray = pvLoadPicture(hBitmap)
+    Set GdipLoadPictureArray = pvLoadPicture(hBitmap, Nothing, TargetWidth, TargetHeight)
 QH:
     Exit Function
 EH:
@@ -539,6 +561,7 @@ Public Function GdipSetClipboardDib(oPic As StdPicture) As Boolean
     If SetClipboardData(vbCFDIB, hMem) = 0 Then
         GoTo QH
     End If
+    hMem = 0
     '--- success
     GdipSetClipboardDib = True
 QH:
@@ -614,6 +637,7 @@ Public Function GdipSetClipboardDibV5(oPic As StdPicture) As Boolean
     If SetClipboardData(CF_DIBV5, hMem) = 0 Then
         GoTo QH
     End If
+    hMem = 0
     '--- success
     GdipSetClipboardDibV5 = True
 QH:
@@ -702,12 +726,95 @@ EH:
     Resume QH
 End Function
 
+Public Function WicLoadPicture( _
+            sFileName As String, _
+            Optional ByVal TargetWidth As Long, _
+            Optional ByVal TargetHeight As Long, _
+            Optional ByVal ImageFrame As Long) As StdPicture
+    Const FUNC_NAME     As String = "WicLoadPicture"
+    Dim pDecoder        As stdole.IUnknown
+    Dim lFameCount      As Long
+    Dim pFrame          As stdole.IUnknown
+    
+    On Error GoTo EH
+    If m_pWicFactory Is Nothing Then
+        If WICCreateImagingFactory_Proxy(WINCODEC_SDK_VERSION2, m_pWicFactory) < 0 Then
+            If WICCreateImagingFactory_Proxy(WINCODEC_SDK_VERSION1, m_pWicFactory) < 0 Then
+                GoTo QH
+            End If
+        End If
+    End If
+    If IWICImagingFactory_CreateDecoderFromFilename_Proxy(m_pWicFactory, StrPtr(sFileName), ByVal 0, GENERIC_READ, 0, pDecoder) < 0 Or pDecoder Is Nothing Then
+        GoTo QH
+    End If
+    If IWICBitmapDecoder_GetFrameCount_Proxy(pDecoder, lFameCount) < 0 Or ImageFrame >= lFameCount Then
+        GoTo QH
+    End If
+    If IWICBitmapDecoder_GetFrame_Proxy(pDecoder, ImageFrame, pFrame) < 0 Or pFrame Is Nothing Then
+        GoTo QH
+    End If
+    Set WicLoadPicture = pvLoadPicture(0, pFrame, TargetWidth, TargetHeight)
+QH:
+    Exit Function
+EH:
+    PrintError FUNC_NAME
+    Resume QH
+End Function
+
+Public Function WicLoadPictureArray( _
+            baBuffer() As Byte, _
+            Optional ByVal TargetWidth As Long, _
+            Optional ByVal TargetHeight As Long, _
+            Optional ByVal ImageFrame As Long) As StdPicture
+    Const FUNC_NAME     As String = "WicLoadPictureArray"
+    Dim pStream         As stdole.IUnknown
+    Dim pDecoder        As stdole.IUnknown
+    Dim lFameCount      As Long
+    Dim pFrame          As stdole.IUnknown
+    
+    On Error GoTo EH
+    If m_pWicFactory Is Nothing Then
+        If WICCreateImagingFactory_Proxy(WINCODEC_SDK_VERSION2, m_pWicFactory) < 0 Then
+            If WICCreateImagingFactory_Proxy(WINCODEC_SDK_VERSION1, m_pWicFactory) < 0 Then
+                GoTo QH
+            End If
+        End If
+    End If
+    Set pStream = SHCreateMemStream(baBuffer(LBound(baBuffer)), UBound(baBuffer) - LBound(baBuffer) + 1)
+    If pStream Is Nothing Then
+        GoTo QH
+    End If
+    If IWICImagingFactory_CreateDecoderFromStream_Proxy(m_pWicFactory, pStream, ByVal 0, 0, pDecoder) < 0 Or pDecoder Is Nothing Then
+        GoTo QH
+    End If
+    If IWICBitmapDecoder_GetFrameCount_Proxy(pDecoder, lFameCount) < 0 Or ImageFrame >= lFameCount Then
+        GoTo QH
+    End If
+    If IWICBitmapDecoder_GetFrame_Proxy(pDecoder, ImageFrame, pFrame) < 0 Or pFrame Is Nothing Then
+        GoTo QH
+    End If
+    Set WicLoadPictureArray = pvLoadPicture(0, pFrame, TargetWidth, TargetHeight)
+QH:
+    Exit Function
+EH:
+    PrintError FUNC_NAME
+    Resume QH
+End Function
+
+
 '= private ===============================================================
 
-Private Function pvLoadPicture(hBitmap As Long) As StdPicture
+Private Function pvLoadPicture( _
+            ByVal hBitmap As Long, _
+            pFrame As stdole.IUnknown, _
+            ByVal sngTargetWidth As Single, _
+            ByVal sngTargetHeight As Single) As StdPicture
     Const FUNC_NAME     As String = "pvLoadPicture"
+    Const EPSILON       As Single = 0.0001
     Dim sngWidth        As Single
     Dim sngHeight       As Single
+    Dim lWidth          As Long
+    Dim lHeight         As Long
     Dim hMemDC          As Long
     Dim hDib            As Long
     Dim hPrevDib        As Long
@@ -716,31 +823,77 @@ Private Function pvLoadPicture(hBitmap As Long) As StdPicture
     Dim hIcon           As Long
     Dim uDesc           As PICTDESC
     Dim aGUID(0 To 3)   As Long
+    Dim pConverter      As stdole.IUnknown
+    Dim pScaler         As stdole.IUnknown
+    Dim lpBits          As Long
     
     On Error GoTo EH
-    If GdipGetImageDimension(hBitmap, sngWidth, sngHeight) <> 0 Then
-        GoTo QH
+    If hBitmap <> 0 Then
+        If GdipGetImageDimension(hBitmap, sngWidth, sngHeight) <> 0 Then
+            GoTo QH
+        End If
+    Else
+        If IWICBitmapSource_GetSize_Proxy(pFrame, lWidth, lHeight) < 0 Then
+            GoTo QH
+        End If
+        sngWidth = lWidth
+        sngHeight = lHeight
     End If
     hMemDC = CreateCompatibleDC(0)
     If hMemDC = 0 Then
         GoTo QH
     End If
-    If Not pvCreateDib(hMemDC, sngWidth, sngHeight, hDib) Then
+    If Abs(sngTargetWidth) < EPSILON Then
+        sngTargetWidth = sngWidth
+    End If
+    If Abs(sngTargetHeight) < EPSILON Then
+        sngTargetHeight = sngHeight
+    End If
+    If Not pvCreateDib(hMemDC, sngTargetWidth, sngTargetHeight, hDib, lpBits) Then
         GoTo QH
     End If
-    hPrevDib = SelectObject(hMemDC, hDib)
-    If GdipCreateFromHDC(hMemDC, hGraphics) <> 0 Then
-        GoTo QH
+    If hBitmap <> 0 Then
+        hPrevDib = SelectObject(hMemDC, hDib)
+        If GdipCreateFromHDC(hMemDC, hGraphics) <> 0 Then
+            GoTo QH
+        End If
+        If GdipDrawImageRectRect(hGraphics, hBitmap, 0, 0, sngWidth, sngHeight, 0, 0, sngTargetWidth, sngTargetHeight) <> 0 Then
+            GoTo QH
+        End If
+        Call SelectObject(hMemDC, hPrevDib)
+        hPrevDib = 0
+    Else
+        If IWICImagingFactory_CreateFormatConverter_Proxy(m_pWicFactory, pConverter) < 0 Or pConverter Is Nothing Then
+            GoTo QH
+        End If
+        '--- GUID_WICPixelFormat32bppPBGRA
+        aGUID(0) = &H6FDDC324
+        aGUID(1) = &H4BFE4E03
+        aGUID(2) = &H773D85B1
+        aGUID(3) = &H10C98D76
+        If IWICFormatConverter_Initialize_Proxy(pConverter, pFrame, aGUID(0), 0, Nothing, 0#, 0) < 0 Then
+            GoTo QH
+        End If
+        If Abs(sngWidth - sngTargetWidth) > EPSILON Or Abs(sngHeight - sngTargetHeight) > EPSILON Then
+            If IWICImagingFactory_CreateBitmapScaler_Proxy(m_pWicFactory, pScaler) < 0 Then
+                GoTo QH
+            End If
+            If IWICBitmapScaler_Initialize_Proxy(pScaler, pConverter, sngTargetWidth, sngTargetHeight, WICBitmapInterpolationModeHighQualityCubic) < 0 Then
+                If IWICBitmapScaler_Initialize_Proxy(pScaler, pConverter, sngTargetWidth, sngTargetHeight, WICBitmapInterpolationModeFant) < 0 Then
+                    GoTo QH
+                End If
+            End If
+        Else
+            Set pScaler = pConverter
+        End If
+        If IWICBitmapSource_CopyPixels_Proxy(pScaler, ByVal 0&, sngTargetWidth * 4, sngTargetWidth * sngTargetHeight * 4, ByVal lpBits) < 0 Then
+            GoTo QH
+        End If
     End If
-    If GdipDrawImageRectRect(hGraphics, hBitmap, 0, 0, sngWidth, sngHeight, 0, 0, sngWidth, sngHeight) <> 0 Then
-        GoTo QH
-    End If
-    Call SelectObject(hMemDC, hPrevDib)
-    hPrevDib = 0
     With uInfo
         .fIcon = 1
         .hbmColor = hDib
-        .hbmMask = CreateBitmap(sngWidth, sngHeight, 1, 1, ByVal 0)
+        .hbmMask = CreateBitmap(sngTargetWidth, sngTargetHeight, 1, 1, ByVal 0)
     End With
     hIcon = CreateIconIndirect(uInfo)
     With uDesc
@@ -748,6 +901,7 @@ Private Function pvLoadPicture(hBitmap As Long) As StdPicture
         .lType = vbPicTypeIcon
         .hBmp = hIcon
     End With
+    '--- IID_IPicture
     aGUID(0) = &H7BF80980
     aGUID(1) = &H101ABF32
     aGUID(2) = &HAA00BB8B
@@ -1163,10 +1317,9 @@ End Function
 
 '= common ================================================================
 
-Private Function pvCreateDib(ByVal hMemDC As Long, ByVal lWidth As Long, ByVal lHeight As Long, hDib As Long) As Boolean
+Private Function pvCreateDib(ByVal hMemDC As Long, ByVal lWidth As Long, ByVal lHeight As Long, hDib As Long, Optional lpBits As Long) As Boolean
     Const FUNC_NAME     As String = "pvCreateDib"
     Dim uHdr            As BITMAPINFOHEADER
-    Dim lpBits          As Long
     
     On Error GoTo EH
     With uHdr
