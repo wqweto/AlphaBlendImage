@@ -288,6 +288,7 @@ Private m_nDownShift            As Integer
 Private m_sngDownX              As Single
 Private m_sngDownY              As Single
 Private m_pWicFactory           As stdole.IUnknown
+Private m_sLastError            As String
 
 Private Type UcsRgbQuad
     R                   As Byte
@@ -301,6 +302,7 @@ End Type
 '=========================================================================
 
 Private Function PrintError(sFunction As String) As VbMsgBoxResult
+    m_sLastError = Err.Description
     Debug.Print "Critical error: " & Err.Description & " [" & STR_MODULE_NAME & "." & sFunction & "]", Timer
 End Function
 
@@ -415,6 +417,10 @@ Property Let PixelARGB(ByVal lX As Long, ByVal lY As Long, ByVal clrValue As Lon
         pvPrepareBitmap m_hBitmap
     End If
     Call GdipBitmapSetPixel(m_hBitmap, lX, lY, clrValue)
+End Property
+
+Property Get LastError() As String
+     LastError = m_sLastError
 End Property
 
 '=========================================================================
@@ -739,18 +745,18 @@ Public Function WicLoadPicture( _
     On Error GoTo EH
     If m_pWicFactory Is Nothing Then
         If WICCreateImagingFactory_Proxy(WINCODEC_SDK_VERSION2, m_pWicFactory) < 0 Then
-            If WICCreateImagingFactory_Proxy(WINCODEC_SDK_VERSION1, m_pWicFactory) < 0 Then
+            If pvCheckHResult(WICCreateImagingFactory_Proxy(WINCODEC_SDK_VERSION1, m_pWicFactory)) < 0 Then
                 GoTo QH
             End If
         End If
     End If
-    If IWICImagingFactory_CreateDecoderFromFilename_Proxy(m_pWicFactory, StrPtr(sFileName), ByVal 0, GENERIC_READ, 0, pDecoder) < 0 Or pDecoder Is Nothing Then
+    If pvCheckHResult(IWICImagingFactory_CreateDecoderFromFilename_Proxy(m_pWicFactory, StrPtr(sFileName), ByVal 0, GENERIC_READ, 0, pDecoder)) < 0 Or pDecoder Is Nothing Then
         GoTo QH
     End If
-    If IWICBitmapDecoder_GetFrameCount_Proxy(pDecoder, lFameCount) < 0 Or ImageFrame >= lFameCount Then
+    If pvCheckHResult(IWICBitmapDecoder_GetFrameCount_Proxy(pDecoder, lFameCount)) < 0 Or ImageFrame >= lFameCount Then
         GoTo QH
     End If
-    If IWICBitmapDecoder_GetFrame_Proxy(pDecoder, ImageFrame, pFrame) < 0 Or pFrame Is Nothing Then
+    If pvCheckHResult(IWICBitmapDecoder_GetFrame_Proxy(pDecoder, ImageFrame, pFrame)) < 0 Or pFrame Is Nothing Then
         GoTo QH
     End If
     Set WicLoadPicture = pvLoadPicture(0, pFrame, TargetWidth, TargetHeight)
@@ -775,7 +781,7 @@ Public Function WicLoadPictureArray( _
     On Error GoTo EH
     If m_pWicFactory Is Nothing Then
         If WICCreateImagingFactory_Proxy(WINCODEC_SDK_VERSION2, m_pWicFactory) < 0 Then
-            If WICCreateImagingFactory_Proxy(WINCODEC_SDK_VERSION1, m_pWicFactory) < 0 Then
+            If pvCheckHResult(WICCreateImagingFactory_Proxy(WINCODEC_SDK_VERSION1, m_pWicFactory)) < 0 Then
                 GoTo QH
             End If
         End If
@@ -784,13 +790,13 @@ Public Function WicLoadPictureArray( _
     If pStream Is Nothing Then
         GoTo QH
     End If
-    If IWICImagingFactory_CreateDecoderFromStream_Proxy(m_pWicFactory, pStream, ByVal 0, 0, pDecoder) < 0 Or pDecoder Is Nothing Then
+    If pvCheckHResult(IWICImagingFactory_CreateDecoderFromStream_Proxy(m_pWicFactory, pStream, ByVal 0, 0, pDecoder)) < 0 Or pDecoder Is Nothing Then
         GoTo QH
     End If
-    If IWICBitmapDecoder_GetFrameCount_Proxy(pDecoder, lFameCount) < 0 Or ImageFrame >= lFameCount Then
+    If pvCheckHResult(IWICBitmapDecoder_GetFrameCount_Proxy(pDecoder, lFameCount)) < 0 Or ImageFrame >= lFameCount Then
         GoTo QH
     End If
-    If IWICBitmapDecoder_GetFrame_Proxy(pDecoder, ImageFrame, pFrame) < 0 Or pFrame Is Nothing Then
+    If pvCheckHResult(IWICBitmapDecoder_GetFrame_Proxy(pDecoder, ImageFrame, pFrame)) < 0 Or pFrame Is Nothing Then
         GoTo QH
     End If
     Set WicLoadPictureArray = pvLoadPicture(0, pFrame, TargetWidth, TargetHeight)
@@ -833,7 +839,7 @@ Private Function pvLoadPicture( _
             GoTo QH
         End If
     Else
-        If IWICBitmapSource_GetSize_Proxy(pFrame, lWidth, lHeight) < 0 Then
+        If pvCheckHResult(IWICBitmapSource_GetSize_Proxy(pFrame, lWidth, lHeight)) < 0 Then
             GoTo QH
         End If
         sngWidth = lWidth
@@ -863,7 +869,7 @@ Private Function pvLoadPicture( _
         Call SelectObject(hMemDC, hPrevDib)
         hPrevDib = 0
     Else
-        If IWICImagingFactory_CreateFormatConverter_Proxy(m_pWicFactory, pConverter) < 0 Or pConverter Is Nothing Then
+        If pvCheckHResult(IWICImagingFactory_CreateFormatConverter_Proxy(m_pWicFactory, pConverter)) < 0 Or pConverter Is Nothing Then
             GoTo QH
         End If
         '--- GUID_WICPixelFormat32bppPBGRA
@@ -871,22 +877,22 @@ Private Function pvLoadPicture( _
         aGUID(1) = &H4BFE4E03
         aGUID(2) = &H773D85B1
         aGUID(3) = &H10C98D76
-        If IWICFormatConverter_Initialize_Proxy(pConverter, pFrame, aGUID(0), 0, Nothing, 0#, 0) < 0 Then
+        If pvCheckHResult(IWICFormatConverter_Initialize_Proxy(pConverter, pFrame, aGUID(0), 0, Nothing, 0#, 0)) < 0 Then
             GoTo QH
         End If
         If Abs(sngWidth - sngTargetWidth) > EPSILON Or Abs(sngHeight - sngTargetHeight) > EPSILON Then
-            If IWICImagingFactory_CreateBitmapScaler_Proxy(m_pWicFactory, pScaler) < 0 Then
+            If pvCheckHResult(IWICImagingFactory_CreateBitmapScaler_Proxy(m_pWicFactory, pScaler)) < 0 Then
                 GoTo QH
             End If
             If IWICBitmapScaler_Initialize_Proxy(pScaler, pConverter, sngTargetWidth, sngTargetHeight, WICBitmapInterpolationModeHighQualityCubic) < 0 Then
-                If IWICBitmapScaler_Initialize_Proxy(pScaler, pConverter, sngTargetWidth, sngTargetHeight, WICBitmapInterpolationModeFant) < 0 Then
+                If pvCheckHResult(IWICBitmapScaler_Initialize_Proxy(pScaler, pConverter, sngTargetWidth, sngTargetHeight, WICBitmapInterpolationModeFant)) < 0 Then
                     GoTo QH
                 End If
             End If
         Else
             Set pScaler = pConverter
         End If
-        If IWICBitmapSource_CopyPixels_Proxy(pScaler, ByVal 0&, sngTargetWidth * 4, sngTargetWidth * sngTargetHeight * 4, ByVal lpBits) < 0 Then
+        If pvCheckHResult(IWICBitmapSource_CopyPixels_Proxy(pScaler, ByVal 0&, sngTargetWidth * 4, sngTargetWidth * sngTargetHeight * 4, ByVal lpBits)) < 0 Then
             GoTo QH
         End If
     End If
@@ -1314,6 +1320,12 @@ Private Function pvHasAlpha(ByVal lPtr As Long, ByVal lSize As Long) As Boolean
     Next
 End Function
 
+Private Function pvCheckHResult(ByVal hResult As Long) As Long
+    If hResult < 0 Then
+        Err.Raise hResult
+    End If
+    pvCheckHResult = pvCheckHResult
+End Function
 
 '= common ================================================================
 
