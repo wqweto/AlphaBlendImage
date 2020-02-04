@@ -65,7 +65,7 @@ Attribute VB_Exposed = False
 '=========================================================================
 Option Explicit
 DefObj A-Z
-Private Const STR_MODULE_NAME As String = "AlphaBlendTabStrip"
+Private Const MODULE_NAME As String = "AlphaBlendTabStrip"
 
 '=========================================================================
 ' Events
@@ -83,7 +83,7 @@ Private Declare Function OleTranslateColor Lib "oleaut32" (ByVal lOleColor As Lo
 '--- GDI+
 Private Declare Function GdipCreateSolidFill Lib "gdiplus" (ByVal argb As Long, hBrush As Long) As Long
 Private Declare Function GdipSetSolidFillColor Lib "gdiplus" (ByVal hBrush As Long, ByVal argb As Long) As Long
-Private Declare Function GdipFillRectangleI Lib "gdiplus" (ByVal hGraphics As Long, ByVal hBrush As Long, ByVal lX As Long, ByVal lY As Long, ByVal lWidth As Long, ByVal lHeight As Long) As Long
+Private Declare Function GdipFillRectangle Lib "gdiplus" (ByVal hGraphics As Long, ByVal hBrush As Long, ByVal sngX As Single, ByVal sngY As Single, ByVal sngWidth As Single, ByVal sngHeight As Single) As Long
 Private Declare Function GdipDeleteBrush Lib "gdiplus" (ByVal hBrush As Long) As Long
 
 '=========================================================================
@@ -107,7 +107,11 @@ End Type
 '=========================================================================
 
 Private Function PrintError(sFunction As String) As VbMsgBoxResult
-    Debug.Print "Critical error: " & Err.Description & " [" & STR_MODULE_NAME & "." & sFunction & "]", Timer
+    #If USE_DEBUG_LOG <> 0 Then
+        DebugLog MODULE_NAME, sFunction & "(" & Erl & ")", Err.Description & " &H" & Hex$(Err.Number), vbLogEventTypeError
+    #Else
+        Debug.Print "Critical error: " & Err.Description & " [" & MODULE_NAME & "." & sFunction & "]"
+    #End If
 End Function
 
 '=========================================================================
@@ -166,6 +170,10 @@ Property Let TabCaption(ByVal Index As Long, sValue As String)
     pvResizeTabs
 End Property
 
+Property Get TabCount() As Long
+    TabCount = UBound(m_aTabCaptions) + 1
+End Property
+
 '=========================================================================
 ' Methods
 '=========================================================================
@@ -177,7 +185,9 @@ Private Sub pvLoadTabs()
     On Error GoTo EH
     For lIdx = 0 To UBound(m_aTabCaptions)
         If labTab.UBound < lIdx + 1 Then
+            On Error GoTo QH
             Load labTab(lIdx + 1)
+            On Error GoTo EH
             labTab(lIdx + 1).ZOrder vbBringToFront
             labTab(lIdx + 1).BackColor = vbButtonFace
         End If
@@ -185,6 +195,7 @@ Private Sub pvLoadTabs()
     For lIdx = lIdx + 1 To labTab.UBound
         Unload labTab(lIdx)
     Next
+QH:
     Exit Sub
 EH:
     PrintError FUNC_NAME
@@ -199,9 +210,9 @@ Private Sub pvResizeTabs()
     
     On Error GoTo EH
     labBackgr.Move 0, 0, ScaleWidth, ScaleHeight
-    lTop = labBackgr.Top + 30
-    lLeft = labBackgr.Left + 90
-    lHeight = labBackgr.Height - 30
+    lTop = labBackgr.Top + IconScale(3) * ScreenTwipsPerPixelY
+    lLeft = labBackgr.Left + IconScale(6) * ScreenTwipsPerPixelX
+    lHeight = labBackgr.Height - IconScale(3) * ScreenTwipsPerPixelY
     For lIdx = 0 To labTab.UBound - 1
         With labTab(lIdx + 1)
             .Visible = False
@@ -269,72 +280,78 @@ EH:
     PrintError FUNC_NAME
 End Sub
 
-Private Sub labTab_OwnerDraw(Index As Integer, ByVal hGraphics As Long, ByVal hFont As Long, sCaption As String, lLeft As Long, lTop As Long, lWidth As Long, lHeight As Long)
+Private Sub labTab_OwnerDraw(Index As Integer, ByVal hGraphics As Long, ByVal hFont As Long, sCaption As String, sngLeft As Single, sngTop As Single, sngWidth As Single, sngHeight As Single)
     Const FUNC_NAME     As String = "labTab_OwnerDraw"
     Dim clrLight        As Long
+    Dim sngPixel        As Single
     
     On Error GoTo EH
+    sngPixel = IconScale(16!) / 16!
     If Index - 1 = m_lCurrentTab Then
         clrLight = pvTranslateColor(vbWindowBackground)
-        pvDrawRect hGraphics, 0, 0, lWidth, lHeight - 1, clrLight, clrLight, pvTranslateColor(vbWindowText), pvTranslateColor(vbButtonFace)
-        lLeft = lLeft + 1
-        lWidth = lWidth - 2
+        pvDrawRect hGraphics, 0, 0, sngWidth, sngHeight, clrLight, clrLight, pvTranslateColor(vbWindowText), pvTranslateColor(vbButtonFace)
+        sngLeft = sngLeft + sngPixel
+        sngWidth = sngWidth - 2 * sngPixel
     ElseIf Index <> m_lCurrentTab Then
-        pvDrawRect hGraphics, 0, 3, lWidth, lHeight - 8, 0, 0, pvTranslateColor(vbWindowText, 0.5), 0
-        lWidth = lWidth - 1
+        pvDrawRect hGraphics, 0, 3 * sngPixel, sngWidth, sngHeight - 6 * sngPixel, 0, 0, pvTranslateColor(vbWindowText, 0.5), 0
+        sngWidth = sngWidth - sngPixel
     End If
-    lTop = lTop + 1
-    lHeight = lHeight - 2
+    sngTop = sngTop + sngPixel
+    sngHeight = sngHeight - 2 * sngPixel
     Exit Sub
 EH:
     PrintError FUNC_NAME
 End Sub
 
-Private Sub labBackgr_OwnerDraw(ByVal hGraphics As Long, ByVal hFont As Long, sCaption As String, lLeft As Long, lTop As Long, lWidth As Long, lHeight As Long)
+Private Sub labBackgr_OwnerDraw(ByVal hGraphics As Long, ByVal hFont As Long, sCaption As String, sngLeft As Single, sngTop As Single, sngWidth As Single, sngHeight As Single)
     Const FUNC_NAME     As String = "labBackgr_OwnerDraw"
     Dim clrDark         As Long
+    Dim sngPixel        As Single
     
     On Error GoTo EH
+    sngPixel = IconScale(16!) / 16!
     clrDark = pvTranslateColor(vbWindowText, 0.25)
-    pvDrawRect hGraphics, 0, 0, lWidth, lHeight, clrDark, clrDark, clrDark, pvTranslateColor(vbWindowBackground)
-    lLeft = lLeft + 1
-    lTop = lTop + 1
-    lWidth = lWidth - 2
-    lHeight = lHeight - 1
+    pvDrawRect hGraphics, 0, 0, sngWidth, sngHeight, clrDark, clrDark, clrDark, pvTranslateColor(vbWindowBackground)
+    sngLeft = sngLeft + sngPixel
+    sngTop = sngTop + sngPixel
+    sngWidth = sngWidth - 2 * sngPixel
+    sngHeight = sngHeight - sngPixel
     Exit Sub
 EH:
     PrintError FUNC_NAME
 End Sub
 
 Private Function pvDrawRect(ByVal hGraphics As Long, _
-            ByVal lLeft As Long, ByVal lTop As Long, ByVal lWidth As Long, ByVal lHeight As Long, _
+            ByVal sngLeft As Single, ByVal sngTop As Single, ByVal sngWidth As Single, ByVal sngHeight As Single, _
             ByVal clrLeft As Long, ByVal clrTop As Long, ByVal clrRight As Long, ByVal clrBottom As Long) As Boolean
     Const FUNC_NAME     As String = "pvDrawRect"
     Dim hBrush          As Long
+    Dim sngPixel        As Single
     
     On Error GoTo EH
+    sngPixel = IconScale(16!) / 16!
     If GdipCreateSolidFill(clrLeft, hBrush) <> 0 Then
         GoTo QH
     End If
-    If GdipFillRectangleI(hGraphics, hBrush, lLeft, lTop, 1, lHeight) <> 0 Then
+    If GdipFillRectangle(hGraphics, hBrush, sngLeft + 0.5, sngTop + 0.5, sngPixel, sngHeight) <> 0 Then
         GoTo QH
     End If
     If GdipSetSolidFillColor(hBrush, clrTop) <> 0 Then
         GoTo QH
     End If
-    If GdipFillRectangleI(hGraphics, hBrush, lLeft + 1, lTop, lWidth, 1) <> 0 Then
+    If GdipFillRectangle(hGraphics, hBrush, sngLeft + 0.5 + sngPixel, sngTop + 0.5, sngWidth, sngPixel) <> 0 Then
         GoTo QH
     End If
     If GdipSetSolidFillColor(hBrush, clrRight) <> 0 Then
         GoTo QH
     End If
-    If GdipFillRectangleI(hGraphics, hBrush, lLeft + lWidth - 1, lTop + 1, 1, lHeight) <> 0 Then
+    If GdipFillRectangle(hGraphics, hBrush, sngLeft + sngWidth - 0.5 - sngPixel, sngTop + 0.5 + sngPixel, sngPixel, sngHeight - sngPixel) <> 0 Then
         GoTo QH
     End If
     If GdipSetSolidFillColor(hBrush, clrBottom) <> 0 Then
         GoTo QH
     End If
-    If GdipFillRectangleI(hGraphics, hBrush, lLeft + 1, lTop + lHeight, lWidth - 1, 1) <> 0 Then
+    If GdipFillRectangle(hGraphics, hBrush, sngLeft + 0.5 + sngPixel, sngTop + sngHeight - 0.5 - sngPixel, sngWidth - 2 * sngPixel - 1, sngPixel) <> 0 Then
         GoTo QH
     End If
     pvDrawRect = True
@@ -347,6 +364,26 @@ QH:
 EH:
     PrintError FUNC_NAME
     Resume QH
+End Function
+
+Private Property Get ScreenTwipsPerPixelX() As Single
+    ScreenTwipsPerPixelX = Screen.TwipsPerPixelX
+End Property
+
+Private Property Get ScreenTwipsPerPixelY() As Single
+    ScreenTwipsPerPixelY = Screen.TwipsPerPixelY
+End Property
+
+Private Function IconScale(ByVal sngSize As Single) As Long
+    If ScreenTwipsPerPixelX < 6.5 Then
+        IconScale = Int(sngSize * 3)
+    ElseIf ScreenTwipsPerPixelX < 9.5 Then
+        IconScale = Int(sngSize * 2)
+    ElseIf ScreenTwipsPerPixelX < 11.5 Then
+        IconScale = Int(sngSize * 3 \ 2)
+    Else
+        IconScale = Int(sngSize * 1)
+    End If
 End Function
 
 '=========================================================================

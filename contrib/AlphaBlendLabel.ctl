@@ -26,7 +26,7 @@ Attribute VB_Exposed = False
 '=========================================================================
 Option Explicit
 DefObj A-Z
-Private Const STR_MODULE_NAME As String = "AlphaBlendLabel"
+Private Const MODULE_NAME As String = "AlphaBlendLabel"
 
 '=========================================================================
 ' Public enums
@@ -60,7 +60,7 @@ End Enum
 '=========================================================================
 
 Event Click()
-Event OwnerDraw(ByVal hGraphics As Long, ByVal hFont As Long, sCaption As String, lLeft As Long, lTop As Long, lWidth As Long, lHeight As Long)
+Event OwnerDraw(ByVal hGraphics As Long, ByVal hFont As Long, sCaption As String, sngLeft As Single, sngTop As Single, sngWidth As Single, sngHeight As Single)
 Event DblClick()
 Event ContextMenu()
 Event MouseDown(Button As Integer, Shift As Integer, X As Single, Y As Single)
@@ -79,6 +79,8 @@ Private Const AC_SRC_ALPHA                  As Long = 1
 Private Const UnitPoint                     As Long = 3
 '--- for GdipSetTextRenderingHint
 Private Const TextRenderingHintAntiAlias    As Long = 4
+'--- for GdipSetSmoothingMode
+Private Const SmoothingModeAntiAlias        As Long = 4
 
 Private Declare Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (lpDst As Any, lpSrc As Any, ByVal ByteLength As Long)
 Private Declare Function CreateCompatibleDC Lib "gdi32" (ByVal hDC As Long) As Long
@@ -111,7 +113,8 @@ Private Declare Function GdipDeleteGraphics Lib "gdiplus" (ByVal hGraphics As Lo
 Private Declare Function GdipSetStringFormatFlags Lib "gdiplus" (ByVal hStringFormat As Long, ByVal lFlags As Long) As Long
 Private Declare Function GdipSetStringFormatAlign Lib "gdiplus" (ByVal hStringFormat As Long, ByVal eAlign As StringAlignment) As Long
 Private Declare Function GdipSetStringFormatLineAlign Lib "gdiplus" (ByVal hStringFormat As Long, ByVal eAlign As StringAlignment) As Long
-Private Declare Function GdipFillRectangleI Lib "gdiplus" (ByVal hGraphics As Long, ByVal hBrush As Long, ByVal lX As Long, ByVal lY As Long, ByVal lWidth As Long, ByVal lHeight As Long) As Long
+Private Declare Function GdipFillRectangle Lib "gdiplus" (ByVal hGraphics As Long, ByVal hBrush As Long, ByVal sngX As Single, ByVal sngY As Single, ByVal sngWidth As Single, ByVal sngHeight As Single) As Long
+Private Declare Function GdipSetSmoothingMode Lib "gdiplus" (ByVal hGraphics As Long, ByVal lSmoothingMd As Long) As Long
 
 Private Type BITMAPINFOHEADER
     biSize              As Long
@@ -209,7 +212,11 @@ Private m_sLastError            As String
 
 Private Function PrintError(sFunction As String) As VbMsgBoxResult
     m_sLastError = Err.Description
-    Debug.Print "Critical error: " & Err.Description & " [" & STR_MODULE_NAME & "." & sFunction & "]", Timer
+    #If USE_DEBUG_LOG <> 0 Then
+        DebugLog MODULE_NAME, sFunction & "(" & Erl & ")", Err.Description & " &H" & Hex$(Err.Number), vbLogEventTypeError
+    #Else
+        Debug.Print "Critical error: " & Err.Description & " [" & MODULE_NAME & "." & sFunction & "]"
+    #End If
 End Function
 
 '=========================================================================
@@ -437,34 +444,37 @@ Private Function pvPaintControl(ByVal hDC As Long) As Boolean
     Dim hStringFormat   As Long
     Dim hBrush          As Long
     Dim uRect           As RECTF
-    Dim lLeft           As Long
-    Dim lTop            As Long
-    Dim lWidth          As Long
-    Dim lHeight         As Long
+    Dim sngLeft         As Single
+    Dim sngTop          As Single
+    Dim sngWidth        As Single
+    Dim sngHeight       As Single
     
     On Error GoTo EH
     If GdipCreateFromHDC(hDC, hGraphics) <> 0 Then
         GoTo QH
     End If
+    If GdipSetSmoothingMode(hGraphics, SmoothingModeAntiAlias) <> 0 Then
+        GoTo QH
+    End If
     hFont = m_hFont
     sCaption = m_sCaption
-    lWidth = ScaleWidth
-    lHeight = ScaleHeight
-    RaiseEvent OwnerDraw(hGraphics, hFont, sCaption, lLeft, lTop, lWidth, lHeight)
-    If lWidth > 0 Then
+    sngWidth = ScaleWidth
+    sngHeight = ScaleHeight
+    RaiseEvent OwnerDraw(hGraphics, hFont, sCaption, sngLeft, sngTop, sngWidth, sngHeight)
+    If sngWidth > 0 Then
         If GdipCreateSolidFill(pvTranslateColor(m_clrBack, m_sngBackOpacity), hBrush) <> 0 Then
             GoTo QH
         End If
-        If GdipFillRectangleI(hGraphics, hBrush, lLeft, lTop, lWidth, lHeight) <> 0 Then
+        If GdipFillRectangle(hGraphics, hBrush, sngLeft + 0.5, sngTop + 0.5, sngWidth - 1, sngHeight - 1) <> 0 Then
             GoTo QH
         End If
         If Not pvPrepareStringFormat(m_eTextAlign Or m_eTextFlags, hStringFormat) Then
             GoTo QH
         End If
-        uRect.Left = lLeft + m_sngTextOffsetX
-        uRect.Top = lTop + m_sngTextOffsetY
-        uRect.Right = lLeft + lWidth
-        uRect.Bottom = lTop + lHeight
+        uRect.Left = sngLeft + m_sngTextOffsetX
+        uRect.Top = sngTop + m_sngTextOffsetY
+        uRect.Right = sngLeft + sngWidth
+        uRect.Bottom = sngTop + sngHeight
         If m_sngShadowOpacity <> 0 Then
             If GdipSetSolidFillColor(hBrush, pvTranslateColor(m_clrShadow, m_sngShadowOpacity)) <> 0 Then
                 GoTo QH
