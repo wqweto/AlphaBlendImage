@@ -32,27 +32,27 @@ Private Const MODULE_NAME As String = "AlphaBlendLabel"
 ' Public enums
 '=========================================================================
 
-Public Enum UcsTextAlignEnum
-    ucsBflHorLeft = 0
-    ucsBflHorCenter = 1
-    ucsBflHorRight = 2
-    ucsBflVertTop = 0
-    ucsBflVertCenter = 4
-    ucsBflVertBottom = 8
-    ucsBflCenter = ucsBflHorCenter Or ucsBflVertCenter
+Public Enum UcsLabelTextAlignEnum
+    ucsLtaHorLeft = 0
+    ucsLtaHorCenter = 1
+    ucsLtaHorRight = 2
+    ucsLtaVertTop = 0
+    ucsLtaVertCenter = 4
+    ucsLtaVertBottom = 8
+    ucsLtaCenter = ucsLtaHorCenter Or ucsLtaVertCenter
 End Enum
 
-Public Enum UcsTextFlagsEnum
-    ucsBflNone = 0
-    ucsBflDirectionRightToLeft = &H1 * 16
-    ucsBflDirectionVertical = &H2 * 16
-    ucsBflNoFitBlackBox = &H4 * 16
-    ucsBflDisplayFormatControl = &H20 * 16
-    ucsBflNoFontFallback = &H400 * 16
-    ucsBflMeasureTrailingSpaces = &H800& * 16
-    ucsBflNoWrap = &H1000& * 16
-    ucsBflLineLimit = &H2000& * 16
-    ucsBflNoClip = &H4000& * 16
+Public Enum UcsLabelTextFlagsEnum
+    ucsLtfNone = 0
+    ucsLtfDirectionRightToLeft = &H1 * 16
+    ucsLtfDirectionVertical = &H2 * 16
+    ucsLtfNoFitBlackBox = &H4 * 16
+    ucsLtfDisplayFormatControl = &H20 * 16
+    ucsLtfNoFontFallback = &H400 * 16
+    ucsLtfMeasureTrailingSpaces = &H800& * 16
+    ucsLtfNoWrap = &H1000& * 16
+    ucsLtfLineLimit = &H2000& * 16
+    ucsLtfNoClip = &H4000& * 16
 End Enum
 
 '=========================================================================
@@ -79,8 +79,10 @@ Private Const AC_SRC_ALPHA                  As Long = 1
 Private Const UnitPoint                     As Long = 3
 '--- for GdipSetTextRenderingHint
 Private Const TextRenderingHintAntiAlias    As Long = 4
+Private Const TextRenderingHintClearTypeGridFit As Long = 5
 '--- for GdipSetSmoothingMode
 Private Const SmoothingModeAntiAlias        As Long = 4
+Private Const DT_CALCRECT                   As Long = &H400
 
 Private Declare Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (lpDst As Any, lpSrc As Any, ByVal ByteLength As Long)
 Private Declare Function CreateCompatibleDC Lib "gdi32" (ByVal hDC As Long) As Long
@@ -93,6 +95,7 @@ Private Declare Function GetModuleHandle Lib "kernel32" Alias "GetModuleHandleA"
 Private Declare Function OleTranslateColor Lib "oleaut32" (ByVal lOleColor As Long, ByVal lHPalette As Long, ByVal lColorRef As Long) As Long
 Private Declare Function GetDC Lib "user32" (ByVal hWnd As Long) As Long
 Private Declare Function ReleaseDC Lib "user32" (ByVal hWnd As Long, ByVal hDC As Long) As Long
+Private Declare Function DrawText Lib "user32" Alias "DrawTextA" (ByVal hDC As Long, ByVal lpStr As String, ByVal nCount As Long, lpRect As Any, ByVal wFormat As Long) As Long
 '--- GDI+
 Private Declare Function GdiplusStartup Lib "gdiplus" (hToken As Long, pInputBuf As Any, Optional ByVal pOutputBuf As Long = 0) As Long
 Private Declare Function GdipCreateFontFamilyFromName Lib "gdiplus" (ByVal lNamePtr As Long, ByVal hFontCollection As Long, hFontFamily As Long) As Long
@@ -175,7 +178,7 @@ Private Const DEF_SHADOWOFFSETX     As Single = 1
 Private Const DEF_SHADOWOFFSETY     As Single = 1
 Private Const DEF_SHADOWCOLOR       As Long = vbBlack
 Private Const DEF_SHADOWOPACITY     As Single = 0
-Private Const DEF_TEXTALIGN         As Long = ucsBflCenter
+Private Const DEF_TEXTALIGN         As Long = ucsLtaCenter
 Private Const DEF_TEXTFLAGS         As Long = 0
 
 Private m_bAutoRedraw           As Boolean
@@ -193,8 +196,8 @@ Private m_sngShadowOffsetX      As Single
 Private m_sngShadowOffsetY      As Single
 Private m_clrShadow             As OLE_COLOR
 Private m_sngShadowOpacity      As Single
-Private m_eTextAlign            As UcsTextAlignEnum
-Private m_eTextFlags            As UcsTextFlagsEnum
+Private m_eTextAlign            As UcsLabelTextAlignEnum
+Private m_eTextFlags            As UcsLabelTextFlagsEnum
 '--- run-time
 Private m_bShown                As Boolean
 Private m_eContainerScaleMode   As ScaleModeConstants
@@ -404,11 +407,11 @@ Property Let ShadowOpacity(ByVal sngValue As Single)
     End If
 End Property
 
-Property Get TextAlign() As UcsTextAlignEnum
+Property Get TextAlign() As UcsLabelTextAlignEnum
     TextAlign = m_eTextAlign
 End Property
 
-Property Let TextAlign(ByVal eValue As UcsTextAlignEnum)
+Property Let TextAlign(ByVal eValue As UcsLabelTextAlignEnum)
     If m_eTextAlign <> eValue Then
         m_eTextAlign = eValue
         pvRefresh
@@ -416,15 +419,30 @@ Property Let TextAlign(ByVal eValue As UcsTextAlignEnum)
     End If
 End Property
 
-Property Get TextFlags() As UcsTextFlagsEnum
+Property Get TextFlags() As UcsLabelTextFlagsEnum
     TextFlags = m_eTextFlags
 End Property
 
-Property Let TextFlags(ByVal eValue As UcsTextFlagsEnum)
+Property Let TextFlags(ByVal eValue As UcsLabelTextFlagsEnum)
     If m_eTextFlags <> eValue Then
         m_eTextFlags = eValue
+        If m_bAutoSize And TypeOf Extender Is VBControlExtender Then
+            pvSizeExtender Extender
+        End If
         pvRefresh
         PropertyChanged
+    End If
+End Property
+
+Property Get WordWrap() As Boolean
+    WordWrap = (m_eTextFlags And ucsLtfNoWrap) = 0
+End Property
+
+Property Let WordWrap(ByVal bValue As Boolean)
+    If bValue Then
+        TextFlags = m_eTextFlags And Not ucsLtfNoWrap
+    Else
+        TextFlags = m_eTextFlags Or ucsLtfNoWrap
     End If
 End Property
 
@@ -433,8 +451,78 @@ Property Get LastError() As String
 End Property
 
 '=========================================================================
-' Method
+' Methods
 '=========================================================================
+
+Public Function MeasureString(sCaption As String, sngWidth As Single, sngHeight As Single) As Boolean
+    Dim hDC             As Long
+    Dim hGraphics       As Long
+    Dim uRect           As RECTF
+    Dim uBounds         As RECTF
+    Dim rcRect(0 To 3)  As Long
+    Dim pFont           As IFont
+    Dim hPrevFont       As Long
+    Dim hStringFormat   As Long
+    
+    hDC = GetDC(ContainerHwnd)
+    If hDC = 0 Then
+        GoTo QH
+    End If
+    If m_hFont <> 0 Then
+        If GdipCreateFromHDC(hDC, hGraphics) <> 0 Then
+            GoTo QH
+        End If
+        If GdipSetSmoothingMode(hGraphics, SmoothingModeAntiAlias) <> 0 Then
+            GoTo QH
+        End If
+        If GdipSetTextRenderingHint(hGraphics, IIf(m_bAutoRedraw, TextRenderingHintAntiAlias, TextRenderingHintClearTypeGridFit)) <> 0 Then
+            GoTo QH
+        End If
+        If Not pvPrepareStringFormat(m_eTextAlign Or m_eTextFlags, hStringFormat) Then
+            GoTo QH
+        End If
+        uRect.Right = ScaleX(sngWidth, m_eContainerScaleMode, vbPixels)
+        uRect.Bottom = ScaleY(sngHeight, m_eContainerScaleMode, vbPixels)
+        If GdipMeasureString(hGraphics, StrPtr(sCaption), Len(sCaption), m_hFont, uRect, hStringFormat, uBounds, 0, 0) <> 0 Then
+            GoTo QH
+        End If
+        '--- ceil
+        sngWidth = -Int(-uBounds.Right)
+        sngHeight = -Int(-uBounds.Bottom)
+    Else
+        Set pFont = m_oFont
+        hPrevFont = SelectObject(hDC, pFont.hFont)
+        rcRect(2) = ScaleX(sngWidth, m_eContainerScaleMode, vbPixels)
+        rcRect(3) = ScaleY(sngHeight, m_eContainerScaleMode, vbPixels)
+        Call DrawText(hDC, sCaption, Len(sCaption), rcRect(0), DT_CALCRECT)
+        Call SelectObject(hDC, hPrevFont)
+        sngWidth = rcRect(2)
+        sngHeight = rcRect(3)
+    End If
+    sngWidth = ScaleY(sngWidth, vbPixels, m_eContainerScaleMode)
+    sngHeight = ScaleY(sngHeight, vbPixels, m_eContainerScaleMode)
+    '--- success
+    MeasureString = True
+QH:
+    If hStringFormat <> 0 Then
+        Call GdipDeleteStringFormat(hStringFormat)
+        hStringFormat = 0
+    End If
+    If hGraphics <> 0 Then
+        Call GdipDeleteGraphics(hGraphics)
+        hGraphics = 0
+    End If
+    If hDC <> 0 Then
+        Call ReleaseDC(ContainerHwnd, hDC)
+        hDC = 0
+    End If
+End Function
+
+Public Sub Refresh()
+    UserControl.Refresh
+End Sub
+
+'= private ===============================================================
 
 Private Function pvPaintControl(ByVal hDC As Long) As Boolean
     Const FUNC_NAME     As String = "pvPaintControl"
@@ -448,12 +536,27 @@ Private Function pvPaintControl(ByVal hDC As Long) As Boolean
     Dim sngTop          As Single
     Dim sngWidth        As Single
     Dim sngHeight       As Single
+    Dim rcRect(0 To 3)  As Long
+    Dim pFont           As IFont
+    Dim hPrevFont       As Long
     
     On Error GoTo EH
+    If GetModuleHandle("gdiplus") = 0 Then
+        rcRect(2) = ScaleX(ScaleWidth, ScaleMode, vbPixels)
+        rcRect(3) = ScaleY(ScaleHeight, ScaleMode, vbPixels)
+        Set pFont = m_oFont
+        hPrevFont = SelectObject(hDC, pFont.hFont)
+        Call DrawText(hDC, m_sCaption, -1, rcRect(0), 0)
+        Call SelectObject(hDC, hPrevFont)
+        GoTo QH
+    End If
     If GdipCreateFromHDC(hDC, hGraphics) <> 0 Then
         GoTo QH
     End If
     If GdipSetSmoothingMode(hGraphics, SmoothingModeAntiAlias) <> 0 Then
+        GoTo QH
+    End If
+    If GdipSetTextRenderingHint(hGraphics, IIf(m_bAutoRedraw, TextRenderingHintAntiAlias, TextRenderingHintClearTypeGridFit)) <> 0 Then
         GoTo QH
     End If
     hFont = m_hFont
@@ -477,9 +580,6 @@ Private Function pvPaintControl(ByVal hDC As Long) As Boolean
         uRect.Bottom = sngTop + sngHeight
         If m_sngShadowOpacity <> 0 Then
             If GdipSetSolidFillColor(hBrush, pvTranslateColor(m_clrShadow, m_sngShadowOpacity)) <> 0 Then
-                GoTo QH
-            End If
-            If GdipSetTextRenderingHint(hGraphics, TextRenderingHintAntiAlias) <> 0 Then
                 GoTo QH
             End If
             uRect.Left = uRect.Left + m_sngShadowOffsetX
@@ -530,6 +630,9 @@ Private Function pvPrepareFont(oFont As StdFont, hFont As Long) As Boolean
     Dim eStyle          As FontStyle
 
     On Error GoTo EH
+    If GetModuleHandle("gdiplus") = 0 Then
+        GoTo QH
+    End If
     If oFont Is Nothing Then
         GoTo QH
     End If
@@ -642,38 +745,17 @@ Private Sub pvHandleMouseDown(Button As Integer, Shift As Integer, X As Single, 
 End Sub
 
 Private Sub pvSizeExtender(oExt As VBControlExtender)
-    Dim hDC             As Long
-    Dim hGraphics       As Long
     Dim sngWidth        As Single
     Dim sngHeight       As Single
-    Dim uBounds         As RECTF
     
-    If m_hFont = 0 Then
-        GoTo QH
+    If WordWrap Then
+        sngWidth = oExt.Width
     End If
-    hDC = GetDC(ContainerHwnd)
-    If hDC = 0 Then
-        GoTo QH
-    End If
-    If GdipCreateFromHDC(hDC, hGraphics) <> 0 Then
-        GoTo QH
-    End If
-    If GdipMeasureString(hGraphics, StrPtr(m_sCaption), -1, m_hFont, uBounds, 0, uBounds, 0, 0) <> 0 Then
-        GoTo QH
-    End If
-    '--- ceil
-    sngWidth = -Int(-uBounds.Right)
-    sngHeight = -Int(-uBounds.Bottom)
-    oExt.Width = ScaleX(sngWidth, vbPixels, m_eContainerScaleMode)
-    oExt.Height = ScaleY(sngHeight, vbPixels, m_eContainerScaleMode)
-QH:
-    If hGraphics <> 0 Then
-        Call GdipDeleteGraphics(hGraphics)
-        hGraphics = 0
-    End If
-    If hDC <> 0 Then
-        Call ReleaseDC(ContainerHwnd, hDC)
-        hDC = 0
+    If MeasureString(m_sCaption, sngWidth, sngHeight) Then
+        If Not WordWrap Then
+            oExt.Width = sngWidth
+        End If
+        oExt.Height = sngHeight
     End If
 End Sub
 
@@ -892,9 +974,6 @@ Private Sub UserControl_ReadProperties(PropBag As PropertyBag)
         m_eTextFlags = .ReadProperty("TextFlags", DEF_TEXTFLAGS)
     End With
     pvPrepareFont m_oFont, m_hFont
-    If m_bAutoSize And TypeOf Extender Is VBControlExtender Then
-        pvSizeExtender Extender
-    End If
 QH:
     Exit Sub
 EH:
@@ -931,11 +1010,11 @@ EH:
     Resume QH
 End Sub
 
-Private Sub UserControl_AmbientChanged(PropertyName As String)
-    If PropertyName = "ScaleUnits" Then
-        m_eContainerScaleMode = ToScaleMode(Ambient.ScaleUnits)
-    End If
-End Sub
+'Private Sub UserControl_AmbientChanged(PropertyName As String)
+'    If PropertyName = "ScaleUnits" Then
+'        m_eContainerScaleMode = ToScaleMode(Ambient.ScaleUnits)
+'    End If
+'End Sub
 
 '=========================================================================
 ' Base class events
@@ -946,7 +1025,9 @@ Private Sub UserControl_Initialize()
     
     If GetModuleHandle("gdiplus") = 0 Then
         aInput(0) = 1
+        On Error Resume Next
         Call GdiplusStartup(0, aInput(0))
+        On Error GoTo 0
     End If
     m_eContainerScaleMode = vbTwips
 End Sub

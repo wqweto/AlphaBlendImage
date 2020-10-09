@@ -37,12 +37,13 @@ Begin VB.Form Form1
       Layout          =   "Printers|Configuration|Logs"
    End
    Begin Project1.AlphaBlendLabel AlphaBlendLabel1 
-      Height          =   1608
-      Left            =   336
-      Top             =   252
-      Width           =   4464
-      _ExtentX        =   7874
-      _ExtentY        =   2836
+      Height          =   2112
+      Left            =   1344
+      Top             =   336
+      Width           =   3180
+      _ExtentX        =   5609
+      _ExtentY        =   3725
+      AutoSize        =   -1  'True
       Caption         =   "This is a test of the wrap mode This is a test of the wrap mode"
       BeginProperty Font {0BE35203-8F91-11CE-9DE3-00AA004BB851} 
          Name            =   "PT Sans Narrow"
