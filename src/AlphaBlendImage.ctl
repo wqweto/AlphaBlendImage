@@ -104,7 +104,9 @@ Private Declare Function SetWindowLong Lib "user32" Alias "SetWindowLongA" (ByVa
 Private Declare Function UpdateLayeredWindow Lib "user32.dll" (ByVal hWnd As Long, ByVal hdcDest As Long, ptDst As Any, pSize As Any, ByVal hdcSrc As Long, ptSrc As Any, ByVal crKey As Long, pBlend As Any, ByVal dwFlags As Long) As Long
 Private Declare Function GetDC Lib "user32" (ByVal hWnd As Long) As Long
 Private Declare Function ReleaseDC Lib "user32" (ByVal hWnd As Long, ByVal hDC As Long) As Long
-Private Declare Function GetWindowRect Lib "user32" (ByVal hWnd As Long, lpRect As Any) As Long
+Private Declare Function GetClientRect Lib "user32" (ByVal hWnd As Long, lpRect As Any) As Long
+Private Declare Function MapWindowPoints Lib "user32" (ByVal hWndFrom As Long, ByVal hWndTo As Long, lppt As Any, ByVal cPoints As Long) As Long
+Private Declare Function GetParent Lib "user32" (ByVal hWnd As Long) As Long
 '--- clipboard support
 Private Declare Function OpenClipboard Lib "user32" (ByVal hWnd As Long) As Long
 Private Declare Function CloseClipboard Lib "user32" () As Long
@@ -243,13 +245,6 @@ Private Type BITMAPV5HEADER
     bV5ProfileData      As Long
     bV5ProfileSize      As Long
     bV5Reserved         As Long
-End Type
-
-Private Type BLENDFUNCTION
-    BlendOp             As Byte
-    BlendFlags          As Byte
-    SourceConstantAlpha As Byte
-    AlphaFormat         As Byte
 End Type
 
 Private Type POINTAPI
@@ -675,7 +670,6 @@ Public Function GdipUpdateLayeredWindow(ByVal hWnd As Long) As Boolean
     Dim hMemDC          As Long
     Dim hBmp            As Long
     Dim hPrevBmp        As Long
-    Dim uBlend          As BLENDFUNCTION
     Dim uRect(0 To 1)   As POINTAPI
     Dim ptSrc           As POINTAPI
     
@@ -699,18 +693,14 @@ Public Function GdipUpdateLayeredWindow(ByVal hWnd As Long) As Boolean
     If hPrevBmp = 0 Then
         GoTo QH
     End If
-    Call GetWindowRect(hWnd, uRect(0))
+    Call GetClientRect(hWnd, uRect(0))
+    Call MapWindowPoints(hWnd, GetParent(hWnd), uRect(0), 2)
     With uRect(1)
         .X = .X - uRect(0).X
         .Y = .Y - uRect(0).Y
     End With
-    With uBlend
-        .BlendOp = AC_SRC_OVER
-        .BlendFlags = 0
-        .SourceConstantAlpha = 255 * m_sngOpacity
-        .AlphaFormat = AC_SRC_ALPHA
-    End With
-    Call UpdateLayeredWindow(hWnd, hScreenDC, uRect(0), uRect(1), hMemDC, ptSrc, 0, uBlend, ULW_ALPHA)
+    Call UpdateLayeredWindow(hWnd, hScreenDC, uRect(0), uRect(1), hMemDC, ptSrc, 0, _
+        AC_SRC_ALPHA * &H1000000 + CByte(255 * m_sngOpacity) * &H10000 + AC_SRC_OVER, ULW_ALPHA)
     '--- success
     GdipUpdateLayeredWindow = True
 QH:
@@ -1493,6 +1483,9 @@ DefPaint:
         End If
         Line (0, 0)-(ScaleWidth - 1, ScaleHeight - 1), vbBlack, B
     End If
+    If hWnd <> 0 Then
+        GdipUpdateLayeredWindow hWnd
+    End If
     If (GetWindowLong(ContainerHwnd, GWL_EXSTYLE) And WS_EX_LAYERED) <> 0 Then
         GdipUpdateLayeredWindow ContainerHwnd
     End If
@@ -1514,6 +1507,7 @@ Private Sub UserControl_InitProperties()
     
     On Error GoTo EH
     m_eContainerScaleMode = ToScaleMode(Ambient.ScaleUnits)
+    BackStyle = IIf(hWnd = 0, vbTransparent, 1)
     AutoRedraw = DEF_AUTOREDRAW
     Opacity = DEF_OPACITY
     Rotation = DEF_ROTATION
@@ -1530,6 +1524,7 @@ Private Sub UserControl_ReadProperties(PropBag As PropertyBag)
     
     On Error GoTo EH
     m_eContainerScaleMode = ToScaleMode(Ambient.ScaleUnits)
+    BackStyle = IIf(hWnd = 0, vbTransparent, 1)
     With PropBag
         m_bAutoRedraw = .ReadProperty("AutoRedraw", DEF_AUTOREDRAW)
         m_sngOpacity = .ReadProperty("Opacity", DEF_OPACITY)
